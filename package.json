@@ -1,0 +1,22 @@
+{
+  "name": "influencer-bot-vercel-ready",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test": "jest"
+  },
+  "dependencies": {
+    "next": "^14.0.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "@supabase/supabase-js": "^2.42.0",
+    "pg": "^8.11.3"
+  },
+  "devDependencies": {
+    "jest": "^29.0.0",
+    "@types/node": "^20.0.0"
+  }
+}
