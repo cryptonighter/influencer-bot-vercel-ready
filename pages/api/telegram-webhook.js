@@ -23,28 +23,33 @@ async function generateEmbedding(text) {
   return data.data[0].embedding
 }
 
+// Helper: Truncate text to approx token limit
+function truncateText(text, maxChars = 10000) {
+  return text.length > maxChars ? text.substring(0, maxChars) + '...' : text
+}
+
 // Helper: Generate AI response
 async function generateAIResponse(userId, sessionId, userMessage) {
-  // Retrieve recent messages for context
+  // Retrieve recent messages for context (limit to 5 to avoid token overflow)
   const { data: recentMessages } = await supabaseAdmin
     .from('messages')
     .select('body, direction')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
-    .limit(10)
+    .limit(5)
 
-  const context = recentMessages.reverse().map(m => `${m.direction}: ${m.body}`).join('\n')
+  const context = truncateText(recentMessages.reverse().map(m => `${m.direction}: ${m.body}`).join('\n'), 5000)
 
-  // Retrieve relevant embeddings
+  // Retrieve relevant embeddings (limit to 3)
   const userEmbedding = await generateEmbedding(userMessage)
   let retrievedContext = ''
   if (userEmbedding) {
     const { data: similar } = await supabaseAdmin.rpc('similarity_search', {
       query_embedding: userEmbedding,
       match_threshold: 0.7,
-      match_count: 5
+      match_count: 3
     })
-    retrievedContext = similar.map(s => s.content).join('\n')
+    retrievedContext = similar ? truncateText(similar.map(s => s.content).slice(0, 3).join('\n'), 3000) : ''
   }
 
 
