@@ -1,6 +1,6 @@
-import crypto from "crypto"
+const crypto = require("crypto")
 
-export function verifyTelegramRequest(req) {
+function verifyTelegramRequest(req) {
   if (req.method !== "POST") return false
   if (!req.body || !req.body.message) return false
 
@@ -13,3 +13,5 @@ export function verifyTelegramRequest(req) {
 
   return true
 }
+
+module.exports = { verifyTelegramRequest }
