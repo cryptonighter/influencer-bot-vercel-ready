@@ -169,8 +169,10 @@ async function getOrCreateSession(userId) {
 
 // Main webhook handler
 export default async function handler(req, res) {
+  console.log('Webhook received:', req.body)
   try {
     if (!verifyTelegramRequest(req)) {
+      console.log('Verification failed')
       return res.status(400).json({ error: "Invalid Telegram webhook" })
     }
 
