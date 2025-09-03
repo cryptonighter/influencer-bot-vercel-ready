@@ -29,8 +29,9 @@ CREATE TABLE IF NOT EXISTS offers (
 );
 ALTER TABLE offers ENABLE ROW LEVEL SECURITY;
 
-/* Referrals Table */
-DROP TABLE IF EXISTS referrals CASCADE;
+/* -------------------------------------------------
+   Referrals Table – create if missing
+   ------------------------------------------------- */
 CREATE TABLE IF NOT EXISTS referrals (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID,
@@ -41,6 +42,21 @@ CREATE TABLE IF NOT EXISTS referrals (
   created_at timestamptz DEFAULT now()
 );
 ALTER TABLE referrals ENABLE ROW LEVEL SECURITY;
+
+/* -------------------------------------------------
+   Character Context Table – for bot's personality/context
+   ------------------------------------------------- */
+CREATE TABLE IF NOT EXISTS character_context (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  type TEXT,  -- 'image', 'post', 'location', 'blog'
+  title TEXT NOT NULL,
+  description TEXT,
+  tags TEXT[],  -- Array of tags for matching
+  link TEXT,  -- URL to image/post/etc.
+  active BOOLEAN DEFAULT TRUE,
+  created_at timestamptz DEFAULT now()
+);
+ALTER TABLE character_context ENABLE ROW LEVEL SECURITY;
 
 /* Ensure required columns exist (idempotent) */
 DO $
@@ -105,6 +121,11 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_indexes
                  WHERE schemaname = 'public' AND indexname = 'idx_referrals_user') THEN
     CREATE INDEX idx_referrals_user ON referrals (user_id);
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_indexes
+                 WHERE schemaname = 'public' AND indexname = 'idx_character_context_tags') THEN
+    CREATE INDEX idx_character_context_tags ON character_context USING gin (tags);
   END IF;
 END;
 $;
