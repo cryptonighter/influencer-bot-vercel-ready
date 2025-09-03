@@ -89,26 +89,31 @@ async function upsertUser(telegramUser) {
     throw new Error('Invalid telegramUser: missing id')
   }
   const externalId = String(telegramUser.id)
-  
+
   // Try to find existing user
-  const { data: existingUser } = await supabaseAdmin
+  const { data: existingUser, error: selectError } = await supabaseAdmin
     .from('users')
     .select('*')
     .eq('provider', 'telegram')
     .eq('external_id', externalId)
     .single()
 
+  if (selectError && selectError.code !== 'PGRST116') { // PGRST116 is "not found"
+    throw selectError
+  }
+
   if (existingUser) {
     // Update last_seen
-    await supabaseAdmin
+    const { error: updateError } = await supabaseAdmin
       .from('users')
       .update({ last_seen: new Date().toISOString() })
       .eq('id', existingUser.id)
+    if (updateError) throw updateError
     return existingUser
   }
 
   // Create new user
-  const { data: newUser } = await supabaseAdmin
+  const { data: newUser, error: insertError } = await supabaseAdmin
     .from('users')
     .insert([{
       external_id: externalId,
@@ -119,14 +124,18 @@ async function upsertUser(telegramUser) {
     .select()
     .single()
 
+  if (insertError) throw insertError
+  if (!newUser) throw new Error('User insert failed: no data returned')
+
   // Create user profile
-  await supabaseAdmin
+  const { error: profileError } = await supabaseAdmin
     .from('user_profiles')
     .insert([{
       user_id: newUser.id,
       display_name: `${telegramUser.first_name || ''} ${telegramUser.last_name || ''}`.trim(),
       version: 1
     }])
+  if (profileError) throw profileError
 
   return newUser
 }
