@@ -85,6 +85,9 @@ async function generateAIResponse(userId, sessionId, userMessage) {
 
 // Helper: upsert user by telegram ID
 async function upsertUser(telegramUser) {
+  if (!telegramUser || !telegramUser.id) {
+    throw new Error('Invalid telegramUser: missing id')
+  }
   const externalId = String(telegramUser.id)
   
   // Try to find existing user
@@ -169,7 +172,7 @@ async function getOrCreateSession(userId) {
 
 // Main webhook handler
 export default async function handler(req, res) {
-  console.log('Webhook received:', req.body)
+  console.log('Update received:', JSON.stringify(req.body, null, 2))
   try {
     if (!verifyTelegramRequest(req)) {
       console.log('Verification failed')
@@ -179,8 +182,9 @@ export default async function handler(req, res) {
     const update = req.body
     const message = update.message || update.edited_message
 
-    if (!message || !message.text) {
-      return res.status(200).json({ ok: true, skipped: "No text message" })
+    if (!message || !message.text || !message.from || !message.chat) {
+      console.log('Skipped: Missing message, text, from, or chat')
+      return res.status(200).json({ ok: true, skipped: "Incomplete message" })
     }
 
     // Upsert user and get/create session
