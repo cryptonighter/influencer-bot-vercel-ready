@@ -1,6 +1,6 @@
 // pages/api/telegram/webhook.js
-import { supabaseAdmin } from "../../../lib/supabaseAdmin.js"
-import { verifyTelegramRequest } from "../../../utils/verifyTelegram.js"
+import { supabaseAdmin } from "../../lib/supabaseAdmin.js"
+import { verifyTelegramRequest } from "../../utils/verifyTelegram.js"
 
 // Helper: Generate embedding
 async function generateEmbedding(text) {
