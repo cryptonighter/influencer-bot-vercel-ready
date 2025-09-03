@@ -24,11 +24,17 @@ export default function Dashboard() {
         fetch('/api/admin/manage-referrals')
       ]);
       setMetrics(await metricsRes.json());
-      setPartners(await partnersRes.json());
-      setOffers(await offersRes.json());
-      setReferrals(await referralsRes.json());
+      const partnersData = await partnersRes.json();
+      setPartners(Array.isArray(partnersData) ? partnersData : []);
+      const offersData = await offersRes.json();
+      setOffers(Array.isArray(offersData) ? offersData : []);
+      const referralsData = await referralsRes.json();
+      setReferrals(Array.isArray(referralsData) ? referralsData : []);
     } catch (error) {
       console.error('Failed to fetch data:', error);
+      setPartners([]);
+      setOffers([]);
+      setReferrals([]);
     } finally {
       setLoading(false);
     }
