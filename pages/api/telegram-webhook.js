@@ -1,3 +1,5 @@
+console.log("Telegram webhook loaded at", new Date().toISOString());
+
 // pages/api/telegram/webhook.js
 import { supabaseAdmin } from "../../lib/supabaseAdmin.js"
 import { verifyTelegramRequest } from "../../utils/verifyTelegram.js"
