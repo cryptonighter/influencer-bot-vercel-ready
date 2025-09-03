@@ -11,6 +11,8 @@ export default function Dashboard() {
   const [newPartner, setNewPartner] = useState({ name: '', contact_email: '', referral_fee_percent: 10 });
   const [newOffer, setNewOffer] = useState({ partner_id: '', title: '', description: '', category: '', price_cents: 0, discount_percent: 0, referral_link: '', payment_type: 'external' });
   const [newContext, setNewContext] = useState({ type: 'post', title: '', description: '', tags: '', link: '' });
+  const [testTopics, setTestTopics] = useState('');
+  const [testResults, setTestResults] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -124,6 +126,26 @@ export default function Dashboard() {
       }
     } catch (error) {
       console.error('Error adding context:', error);
+    }
+  };
+
+  const handleTestMatching = async (e) => {
+    e.preventDefault();
+    try {
+      const topicsArray = testTopics.split(',').map(t => t.trim()).filter(t => t);
+      const res = await fetch('/api/admin/test-context-matching', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topics: topicsArray }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTestResults(data);
+      } else {
+        alert('Test failed');
+      }
+    } catch (error) {
+      console.error('Error testing matching:', error);
     }
   };
 
@@ -425,6 +447,37 @@ export default function Dashboard() {
               <strong>{c.title}</strong> ({c.type}) - Tags: {c.tags?.join(', ')} - <a href={c.link} target="_blank">Link</a>
             </div>
           ))}
+        </div>
+        <div className="form">
+          <h2>Test Context Matching</h2>
+          <form onSubmit={handleTestMatching}>
+            <div className="form-group">
+              <label>Topics (comma-separated):</label>
+              <input
+                type="text"
+                value={testTopics}
+                onChange={(e) => setTestTopics(e.target.value)}
+                placeholder="e.g., travel, motivation, self-care"
+                required
+              />
+            </div>
+            <button type="submit">Test Matching</button>
+          </form>
+          {testResults && (
+            <div style={{ marginTop: '20px' }}>
+              <h3>Test Results</h3>
+              <p><strong>Input Topics:</strong> {testResults.inputTopics.join(', ')}</p>
+              <p><strong>Total Found:</strong> {testResults.totalFound}</p>
+              <p><strong>Selected for Bot:</strong> {testResults.selectedCount}</p>
+              <ul>
+                {testResults.matchedContexts.map(c => (
+                  <li key={c.id}>
+                    <strong>{c.title}</strong> ({c.type}) - Tags: {c.tags.join(', ')} - <a href={c.link} target="_blank">Link</a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       </div>
     </>
