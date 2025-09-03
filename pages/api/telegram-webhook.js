@@ -96,6 +96,21 @@ async function generateAIResponse(userId, sessionId, userMessage) {
     }
   }
 
+  // Query relevant offers based on topics
+  const { data: relevantOffers } = await supabaseAdmin
+    .from('offers')
+    .select('id, title, description, price_cents, discount_percent, referral_link, payment_type')
+    .eq('active', true)
+    .in('category', summaryData.topics || [])
+    .limit(2);
+
+  let offerContext = '';
+  if (relevantOffers && relevantOffers.length > 0) {
+    offerContext = relevantOffers.map(o =>
+      `Offer: ${o.title} - ${o.description}. Price: ${(o.price_cents / 100).toFixed(2)} (${o.discount_percent}% off!). Link: ${o.referral_link}`
+    ).join('\n');
+  }
+
   // Save to conversation_logs
   if (summaryData.summary) {
     await supabaseAdmin
@@ -112,17 +127,17 @@ async function generateAIResponse(userId, sessionId, userMessage) {
   // Generate embedding if worthy
   let embedding = null;
   if (summaryData.embed_worthy) {
-    embedding = await generateEmbedding(userMessage);  // Based on user message, not bot response
+    embedding = await generateEmbedding(userMessage);
   }
 
-  // Now generate the bot response
-  const systemPrompt = `You are a grounded, practical influencer guiding users toward self-development. Match the user's tone subtly, focus on helpful, realistic advice, and promote paywalled content naturally. Keep responses under 200 words.`;
+  // Now generate the bot response with strategic offer integration
+  const systemPrompt = `You are a grounded, practical influencer guiding users toward self-development. Match the user's tone subtly, focus on helpful, realistic advice. Use magnetic sales tactics: Ask questions to uncover needs/fears, build excitement, and naturally recommend relevant offers when it feels right (not rushed). Address user concerns directly, then pivot to opportunities. Keep responses under 200 words.`;
 
   const responsePayload = {
     model: 'openai/gpt-4o-mini',
     messages: [
       { role: 'system', content: systemPrompt },
-      { role: 'user', content: `Context:\n${logContext}\n\nRecent:\n${context}\n\nUser: ${userMessage}` }
+      { role: 'user', content: `Context:\n${logContext}\n\nRecent:\n${context}\n\nUser: ${userMessage}\n\nRelevant Offers:\n${offerContext}` }
     ],
     max_tokens: 200
   };
@@ -142,7 +157,19 @@ async function generateAIResponse(userId, sessionId, userMessage) {
   }
 
   const data = await response.json();
-  const aiMessage = data.choices[0].message.content;  // Only the message, no JSON
+  const aiMessage = data.choices[0].message.content;
+
+  // Log referrals for sent offers
+  if (relevantOffers) {
+    for (const offer of relevantOffers) {
+      await supabaseAdmin.from('referrals').insert([{
+        user_id: userId,
+        offer_id: offer.id,
+        referral_link: offer.referral_link,
+        status: 'sent'
+      }]);
+    }
+  }
 
   return { message: aiMessage, embedding, summaryData };
 }
