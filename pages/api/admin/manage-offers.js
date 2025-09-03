@@ -7,7 +7,7 @@ export default async function handler(req, res) {
     try {
       const { data, error } = await supabaseAdmin
         .from('offers')
-        .select('*, partners(name)')
+        .select('*')
         .eq('active', true);
       if (error) {
         console.error('GET offers error:', error);
