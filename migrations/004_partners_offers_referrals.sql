@@ -98,6 +98,31 @@ BEGIN
     END IF;
 END $;
 
+/* Add foreign key constraints if not exist */
+DO $
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'offers_partner_id_fkey'
+    ) THEN
+        ALTER TABLE offers ADD CONSTRAINT offers_partner_id_fkey FOREIGN KEY (partner_id) REFERENCES partners(id) ON DELETE CASCADE;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'referrals_user_id_fkey'
+    ) THEN
+        ALTER TABLE referrals ADD CONSTRAINT referrals_user_id_fkey FOREIGN KEY (user_id) REFERENCES "users"(id) ON DELETE CASCADE;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'referrals_offer_id_fkey'
+    ) THEN
+        ALTER TABLE referrals ADD CONSTRAINT referrals_offer_id_fkey FOREIGN KEY (offer_id) REFERENCES offers(id) ON DELETE CASCADE;
+    END IF;
+END $;
+
 /* Indexes – created only if they don’t already exist */
 DO $
 BEGIN
