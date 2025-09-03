@@ -99,16 +99,31 @@ async function generateAIResponse(userId, sessionId, userMessage) {
   // Query relevant offers based on topics
   const { data: relevantOffers } = await supabaseAdmin
     .from('offers')
-    .select('id, title, description, price_cents, discount_percent, referral_link, payment_type')
+    .select('id, title, description, price_cents, discount_percent, referral_link, payment_type, category')
     .eq('active', true)
     .in('category', summaryData.topics || [])
     .limit(2);
+
+  console.log('User topics:', summaryData.topics);
+  console.log('Relevant offers found:', relevantOffers);
 
   let offerContext = '';
   if (relevantOffers && relevantOffers.length > 0) {
     offerContext = relevantOffers.map(o =>
       `Offer: ${o.title} - ${o.description}. Price: ${(o.price_cents / 100).toFixed(2)} (${o.discount_percent}% off!). Link: ${o.referral_link}`
     ).join('\n');
+  } else {
+    // If no exact match, get all active offers as fallback
+    const { data: allOffers } = await supabaseAdmin
+      .from('offers')
+      .select('id, title, description, price_cents, discount_percent, referral_link, payment_type, category')
+      .eq('active', true)
+      .limit(3);
+    if (allOffers && allOffers.length > 0) {
+      offerContext = allOffers.map(o =>
+        `Offer: ${o.title} - ${o.description}. Price: ${(o.price_cents / 100).toFixed(2)} (${o.discount_percent}% off!). Link: ${o.referral_link}`
+      ).join('\n');
+    }
   }
 
   // Save to conversation_logs
@@ -131,7 +146,7 @@ async function generateAIResponse(userId, sessionId, userMessage) {
   }
 
   // Now generate the bot response with strategic offer integration
-  const systemPrompt = `You are a grounded, practical influencer guiding users toward self-development. Match the user's tone subtly, focus on helpful, realistic advice. Use magnetic sales tactics: Ask questions to uncover needs/fears, build excitement, and naturally recommend relevant offers when it feels right (not rushed). Address user concerns directly, then pivot to opportunities. Keep responses under 200 words.`;
+  const systemPrompt = `You are a grounded, practical influencer guiding users toward self-development. Match the user's tone subtly, focus on helpful, realistic advice. If relevant offers are provided, recommend them naturally and accurately based on the user's needs. Do not invent offers—only use the ones listed. If no offers match, suggest exploring related topics. Keep responses under 200 words.`;
 
   const responsePayload = {
     model: 'openai/gpt-4o-mini',
