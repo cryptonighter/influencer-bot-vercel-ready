@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS offers (
   partner_id UUID REFERENCES partners(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   description TEXT,
-  category TEXT,  -- e.g., 'pregnancy', 'career'
+  category TEXT,          -- e.g., 'pregnancy', 'career'
   price_cents INT,
   discount_percent INT DEFAULT 0,
   referral_link TEXT NOT NULL,
@@ -49,10 +49,10 @@ ALTER TABLE offers ENABLE ROW LEVEL SECURITY;
 /* To track earnings */
 CREATE TABLE IF NOT EXISTS referrals (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID REFERENCES "users"(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
   offer_id UUID REFERENCES offers(id) ON DELETE CASCADE,
   referral_link TEXT,
-  status TEXT DEFAULT 'sent',  -- 'sent', 'clicked', 'purchased'
+  status TEXT DEFAULT 'sent',             -- 'sent', 'clicked', 'purchased'
   commission_earned_cents INT DEFAULT 0,
   created_at timestamptz DEFAULT now()
 );
@@ -62,28 +62,56 @@ ALTER TABLE referrals ENABLE ROW LEVEL SECURITY;
 DO $
 BEGIN
     -- Add category to offers if missing
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='offers' AND column_name='category') THEN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'offers' AND column_name = 'category'
+    ) THEN
         ALTER TABLE offers ADD COLUMN category TEXT;
     END IF;
-    -- Add other missing columns if needed
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='offers' AND column_name='discount_percent') THEN
+
+    -- Add discount_percent if missing
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'offers' AND column_name = 'discount_percent'
+    ) THEN
         ALTER TABLE offers ADD COLUMN discount_percent INT DEFAULT 0;
     END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='offers' AND column_name='payment_type') THEN
+
+    -- Add payment_type if missing
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'offers' AND column_name = 'payment_type'
+    ) THEN
         ALTER TABLE offers ADD COLUMN payment_type TEXT DEFAULT 'external';
     END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='referrals' AND column_name='commission_earned_cents') THEN
+
+    -- Add commission_earned_cents to referrals if missing
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'referrals' AND column_name = 'commission_earned_cents'
+    ) THEN
         ALTER TABLE referrals ADD COLUMN commission_earned_cents INT DEFAULT 0;
     END IF;
 END $;
 
-/* Indexes */
+/* Indexes – created only if they don’t already exist */
 DO $
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='idx_offers_category') THEN
-        CREATE INDEX idx_offers_category ON offers(category);
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes
+        WHERE schemaname = 'public' AND indexname = 'idx_offers_category'
+    ) THEN
+        CREATE INDEX idx_offers_category ON offers (category);
     END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='idx_referrals_user') THEN
-        CREATE INDEX idx_referrals_user ON referrals(user_id);
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes
+        WHERE schemaname = 'public' AND indexname = 'idx_referrals_user'
+    ) THEN
+        CREATE INDEX idx_referrals_user ON referrals (user_id);
     END IF;
 END $;
