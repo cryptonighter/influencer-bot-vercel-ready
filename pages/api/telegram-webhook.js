@@ -97,21 +97,16 @@ async function generateAIResponse(userId, sessionId, userMessage) {
   }
 
   // Query relevant offers based on topics
-  const { data: relevantOffers } = await supabaseAdmin
+  let relevantOffers = [];
+  const { data: initialOffers } = await supabaseAdmin
     .from('offers')
     .select('id, title, description, price_cents, discount_percent, referral_link, payment_type, category')
     .eq('active', true)
     .in('category', summaryData.topics || [])
     .limit(2);
 
-  console.log('User topics:', summaryData.topics);
-  console.log('Relevant offers found:', relevantOffers);
-
-  let offerContext = '';
-  if (relevantOffers && relevantOffers.length > 0) {
-    offerContext = relevantOffers.map(o =>
-      `Offer: ${o.title} - ${o.description}. Price: ${(o.price_cents / 100).toFixed(2)} (${o.discount_percent}% off!). Link: ${o.referral_link}`
-    ).join('\n');
+  if (initialOffers && initialOffers.length > 0) {
+    relevantOffers = initialOffers;
   } else {
     // If no exact match, get all active offers as fallback
     const { data: allOffers } = await supabaseAdmin
@@ -119,11 +114,28 @@ async function generateAIResponse(userId, sessionId, userMessage) {
       .select('id, title, description, price_cents, discount_percent, referral_link, payment_type, category')
       .eq('active', true)
       .limit(3);
-    if (allOffers && allOffers.length > 0) {
-      offerContext = allOffers.map(o =>
-        `Offer: ${o.title} - ${o.description}. Price: ${(o.price_cents / 100).toFixed(2)} (${o.discount_percent}% off!). Link: ${o.referral_link}`
-      ).join('\n');
-    }
+    relevantOffers = allOffers || [];
+  }
+
+  // Filter out offers already referred to this user
+  const offerIds = relevantOffers.map(o => o.id);
+  const { data: existingReferrals } = await supabaseAdmin
+    .from('referrals')
+    .select('offer_id')
+    .eq('user_id', userId)
+    .in('offer_id', offerIds);
+
+  const referredOfferIds = existingReferrals ? existingReferrals.map(r => r.offer_id) : [];
+  const newOffers = relevantOffers.filter(o => !referredOfferIds.includes(o.id));
+
+  console.log('User topics:', summaryData.topics);
+  console.log('Relevant offers found:', relevantOffers.length, 'New offers:', newOffers.length);
+
+  let offerContext = '';
+  if (newOffers.length > 0) {
+    offerContext = newOffers.map(o =>
+      `Offer: ${o.title} - ${o.description}. Price: ${(o.price_cents / 100).toFixed(2)} (${o.discount_percent}% off!). Link: ${o.referral_link}`
+    ).join('\n');
   }
 
   // Save to conversation_logs
@@ -146,7 +158,7 @@ async function generateAIResponse(userId, sessionId, userMessage) {
   }
 
   // Now generate the bot response with strategic offer integration
-  const systemPrompt = `You are a grounded, practical influencer guiding users toward self-development. Match the user's tone subtly, focus on helpful, realistic advice. If relevant offers are provided, recommend them naturally and accurately based on the user's needs. Do not invent offers—only use the ones listed. If no offers match, suggest exploring related topics. Keep responses under 200 words.`;
+  const systemPrompt = `You are a grounded, practical influencer guiding users toward self-development. Match the user's tone subtly, focus on helpful, realistic advice. Engage in natural conversation—ask questions, build rapport, and vary your responses. If relevant offers are provided, recommend them naturally and accurately based on the user's needs, but only if it fits the flow. Do not invent offers—only use the ones listed. Avoid repetition; if an offer has been mentioned before, focus on other aspects or ask for more details. Keep responses under 200 words.`;
 
   const responsePayload = {
     model: 'openai/gpt-4o-mini',
@@ -174,9 +186,9 @@ async function generateAIResponse(userId, sessionId, userMessage) {
   const data = await response.json();
   const aiMessage = data.choices[0].message.content;
 
-  // Log referrals for sent offers
-  if (relevantOffers) {
-    for (const offer of relevantOffers) {
+  // Log referrals for new offers only
+  if (newOffers.length > 0) {
+    for (const offer of newOffers) {
       await supabaseAdmin.from('referrals').insert([{
         user_id: userId,
         offer_id: offer.id,
