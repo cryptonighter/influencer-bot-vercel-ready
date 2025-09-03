@@ -1,6 +1,7 @@
-/* ---------------------- */
-/* Partners Table */
-/* For managing affiliates/partners */
+/* -------------------------------------------------
+   Partners Table – single definition
+   ------------------------------------------------- */
+DROP TABLE IF EXISTS partners CASCADE;
 CREATE TABLE IF NOT EXISTS partners (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT NOT NULL,
@@ -12,118 +13,115 @@ CREATE TABLE IF NOT EXISTS partners (
 );
 ALTER TABLE partners ENABLE ROW LEVEL SECURITY;
 
-/* ---------------------- */
-/* Partners Table */
-/* For managing affiliates/partners */
-CREATE TABLE IF NOT EXISTS partners (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  name TEXT NOT NULL,
-  contact_email TEXT,
-  referral_fee_percent INT DEFAULT 10,
-  api_key TEXT,
-  active BOOLEAN DEFAULT TRUE,
-  created_at timestamptz DEFAULT now()
-);
-ALTER TABLE partners ENABLE ROW LEVEL SECURITY;
-
-/* ---------------------- */
-/* Offers Table */
-/* For courses/products with referral details */
+/* -------------------------------------------------
+   Offers Table – add missing column if table already exists
+   ------------------------------------------------- */
 CREATE TABLE IF NOT EXISTS offers (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  partner_id UUID REFERENCES partners(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   description TEXT,
-  category TEXT,          -- e.g., 'pregnancy', 'career'
+  category TEXT,
   price_cents INT,
   discount_percent INT DEFAULT 0,
   referral_link TEXT NOT NULL,
-  payment_type TEXT DEFAULT 'external',  -- 'telegram' or 'external'
+  payment_type TEXT DEFAULT 'external',
   active BOOLEAN DEFAULT TRUE,
   created_at timestamptz DEFAULT now()
 );
 ALTER TABLE offers ENABLE ROW LEVEL SECURITY;
 
-/* ---------------------- */
-/* Referrals Table */
-/* To track earnings */
-CREATE TABLE IF NOT EXISTS referrals (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID REFERENCES "users"(id) ON DELETE CASCADE,
-  offer_id UUID REFERENCES offers(id) ON DELETE CASCADE,
-  referral_link TEXT,
-  status TEXT DEFAULT 'sent',             -- 'sent', 'clicked', 'purchased'
-  commission_earned_cents INT DEFAULT 0,
-  created_at timestamptz DEFAULT now()
-);
-ALTER TABLE referrals ENABLE ROW LEVEL SECURITY;
-
-/* Ensure columns exist (idempotent) */
+/* -------------------------------------------------
+   Ensure required columns exist (idempotent)
+   ------------------------------------------------- */
 DO $
 BEGIN
-    -- Add category to offers if missing
+    -- partner_id column (nullable until FK is added)
     IF NOT EXISTS (
-        SELECT 1
-        FROM information_schema.columns
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'offers' AND column_name = 'partner_id'
+    ) THEN
+        ALTER TABLE offers ADD COLUMN partner_id UUID;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
         WHERE table_name = 'offers' AND column_name = 'category'
     ) THEN
         ALTER TABLE offers ADD COLUMN category TEXT;
     END IF;
 
-    -- Add discount_percent if missing
     IF NOT EXISTS (
-        SELECT 1
-        FROM information_schema.columns
+        SELECT 1 FROM information_schema.columns
         WHERE table_name = 'offers' AND column_name = 'discount_percent'
     ) THEN
         ALTER TABLE offers ADD COLUMN discount_percent INT DEFAULT 0;
     END IF;
 
-    -- Add payment_type if missing
     IF NOT EXISTS (
-        SELECT 1
-        FROM information_schema.columns
+        SELECT 1 FROM information_schema.columns
         WHERE table_name = 'offers' AND column_name = 'payment_type'
     ) THEN
         ALTER TABLE offers ADD COLUMN payment_type TEXT DEFAULT 'external';
     END IF;
 
-    -- Add commission_earned_cents to referrals if missing
     IF NOT EXISTS (
-        SELECT 1
-        FROM information_schema.columns
+        SELECT 1 FROM information_schema.columns
         WHERE table_name = 'referrals' AND column_name = 'commission_earned_cents'
     ) THEN
         ALTER TABLE referrals ADD COLUMN commission_earned_cents INT DEFAULT 0;
     END IF;
 END $;
 
-/* Add foreign key constraints if not exist */
+/* -------------------------------------------------
+   Referrals Table – create if missing
+   ------------------------------------------------- */
+CREATE TABLE IF NOT EXISTS referrals (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID,
+  offer_id UUID,
+  referral_link TEXT,
+  status TEXT DEFAULT 'sent',
+  commission_earned_cents INT DEFAULT 0,
+  created_at timestamptz DEFAULT now()
+);
+ALTER TABLE referrals ENABLE ROW LEVEL SECURITY;
+
+/* -------------------------------------------------
+   Add foreign‑key constraints if they don’t exist
+   ------------------------------------------------- */
 DO $
 BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.table_constraints
         WHERE constraint_name = 'offers_partner_id_fkey'
     ) THEN
-        ALTER TABLE offers ADD CONSTRAINT offers_partner_id_fkey FOREIGN KEY (partner_id) REFERENCES partners(id) ON DELETE CASCADE;
+        ALTER TABLE offers
+            ADD CONSTRAINT offers_partner_id_fkey
+            FOREIGN KEY (partner_id) REFERENCES partners(id) ON DELETE CASCADE;
     END IF;
 
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.table_constraints
         WHERE constraint_name = 'referrals_user_id_fkey'
     ) THEN
-        ALTER TABLE referrals ADD CONSTRAINT referrals_user_id_fkey FOREIGN KEY (user_id) REFERENCES "users"(id) ON DELETE CASCADE;
+        ALTER TABLE referrals
+            ADD CONSTRAINT referrals_user_id_fkey
+            FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
     END IF;
 
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.table_constraints
         WHERE constraint_name = 'referrals_offer_id_fkey'
     ) THEN
-        ALTER TABLE referrals ADD CONSTRAINT referrals_offer_id_fkey FOREIGN KEY (offer_id) REFERENCES offers(id) ON DELETE CASCADE;
+        ALTER TABLE referrals
+            ADD CONSTRAINT referrals_offer_id_fkey
+            FOREIGN KEY (offer_id) REFERENCES offers(id) ON DELETE CASCADE;
     END IF;
 END $;
 
-/* Indexes – created only if they don’t already exist */
+/* -------------------------------------------------
+   Indexes – created only if they don’t already exist
+   ------------------------------------------------- */
 DO $
 BEGIN
     IF NOT EXISTS (
