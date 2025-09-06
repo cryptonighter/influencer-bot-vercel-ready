@@ -41,5 +41,25 @@ export default async function handler(req, res) {
     }
   }
 
+  if (req.method === 'DELETE') {
+    const { id } = req.query;
+    console.log('DELETE offer id:', id);
+    try {
+      const { error } = await supabaseAdmin
+        .from('offers')
+        .delete()
+        .eq('id', id);
+      if (error) {
+        console.error('DELETE offer error:', error);
+        return res.status(500).json({ error: error.message });
+      }
+      console.log('DELETE offer success');
+      return res.status(200).json({ success: true });
+    } catch (err) {
+      console.error('DELETE offer catch:', err);
+      return res.status(500).json({ error: 'Server error' });
+    }
+  }
+
   res.status(405).json({ error: 'Method not allowed' });
 }
