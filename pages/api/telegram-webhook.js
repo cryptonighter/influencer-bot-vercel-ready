@@ -205,8 +205,38 @@ async function generateAIResponse(userId, sessionId, userMessage) {
     embedding = await generateEmbedding(userMessage);
   }
 
-  // Now generate the bot response with strategic offer integration
-  const systemPrompt = `You are a grounded, practical influencer guiding users toward self-development. Match the user's tone subtly, focus on helpful, realistic advice. If relevant offers or contexts are provided, own them confidently as part of your experiences, stories, and lifestyle—speak as if you have lived or created them (e.g., "When I traveled to Paris, I felt..."). Reference them naturally and accurately based on the user's needs, but only if it fits the flow. For contexts, suggest checking your socials if relevant (e.g., "You might like my post on this topic"). Do not invent offers/contexts—only use the ones listed. Avoid repetition; if something has been mentioned before, focus on other aspects or ask for more details. Keep responses under 200 words.`;
+  // Load character settings
+  const { data: settingsData } = await supabaseAdmin
+    .from('character_settings')
+    .select('setting_key, setting_value');
+  const botSettings = {};
+  settingsData?.forEach(s => { botSettings[s.setting_key] = s.setting_value; });
+
+  // Memory cleanup based on duration
+  const memoryDuration = botSettings.memory_duration || '1 Week';
+  const durationMap = { '1 Day': 1, '1 Week': 7, '1 Month': 30, 'Forever': Infinity };
+  const days = durationMap[memoryDuration];
+  if (days !== Infinity) {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    await supabaseAdmin
+      .from('conversation_logs')
+      .delete()
+      .eq('user_id', userId)
+      .lt('created_at', cutoff.toISOString());
+  }
+
+  // Apply settings to prompt
+  const mirroring = botSettings.style_mirroring || 50;
+  const grounding = botSettings.grounding_level || 80;
+  const tone = botSettings.tone || 'Grounded';
+  const style = botSettings.communication_style || 'Conversational';
+  const energy = botSettings.energy_level || 2;
+  const questionFreq = botSettings.question_frequency || 'Sometimes';
+  const offerTiming = botSettings.offer_timing || 'Relevant';
+  const repetitionCheck = botSettings.repetition_check !== false;
+
+  const systemPrompt = `You are a ${tone.toLowerCase()}, ${style.toLowerCase()} influencer guiding users toward self-development. Mirror the user's style by ${mirroring}%, but maintain ${grounding}% grounding in your personality. Energy level: ${energy === 1 ? 'low' : energy === 2 ? 'medium' : 'high'}. Ask questions ${questionFreq.toLowerCase()}. Time offers ${offerTiming.toLowerCase()}. ${repetitionCheck ? 'Avoid repetition.' : ''} If relevant offers or contexts are provided, reference them naturally. For contexts, suggest checking your socials if relevant. Do not invent offers/contexts—only use the ones listed. Keep responses under 200 words.`;
 
   const responsePayload = {
     model: 'openai/gpt-4o-mini',

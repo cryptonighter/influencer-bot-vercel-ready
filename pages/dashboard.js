@@ -13,6 +13,7 @@ export default function Dashboard() {
   const [newContext, setNewContext] = useState({ type: 'post', title: '', description: '', tags: '', link: '' });
   const [testTopics, setTestTopics] = useState('');
   const [testResults, setTestResults] = useState(null);
+  const [settings, setSettings] = useState({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -21,12 +22,13 @@ export default function Dashboard() {
 
   const fetchData = async () => {
     try {
-      const [metricsRes, partnersRes, offersRes, referralsRes, contextsRes] = await Promise.all([
+      const [metricsRes, partnersRes, offersRes, referralsRes, contextsRes, settingsRes] = await Promise.all([
         fetch('/api/admin/metrics'),
         fetch('/api/admin/manage-partners'),
         fetch('/api/admin/manage-offers'),
         fetch('/api/admin/manage-referrals'),
-        fetch('/api/admin/manage-context')
+        fetch('/api/admin/manage-context'),
+        fetch('/api/admin/manage-settings')
       ]);
       setMetrics(await metricsRes.json());
       const partnersData = await partnersRes.json();
@@ -37,12 +39,17 @@ export default function Dashboard() {
       setReferrals(Array.isArray(referralsData) ? referralsData : []);
       const contextsData = await contextsRes.json();
       setContexts(Array.isArray(contextsData) ? contextsData : []);
+      const settingsData = await settingsRes.json();
+      const settingsObj = {};
+      settingsData.forEach(s => { settingsObj[s.setting_key] = s.setting_value; });
+      setSettings(settingsObj);
     } catch (error) {
       console.error('Failed to fetch data:', error);
       setPartners([]);
       setOffers([]);
       setReferrals([]);
       setContexts([]);
+      setSettings({});
     } finally {
       setLoading(false);
     }
@@ -165,6 +172,26 @@ export default function Dashboard() {
       }
     } catch (error) {
       console.error('Error deleting:', error);
+    }
+  };
+
+  const handleSaveSettings = async (e) => {
+    e.preventDefault();
+    try {
+      const settingsArray = Object.keys(settings).map(key => ({ key, value: settings[key] }));
+      const res = await fetch('/api/admin/manage-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settingsArray),
+      });
+      if (res.ok) {
+        alert('Settings saved successfully!');
+        fetchData();
+      } else {
+        alert('Failed to save settings');
+      }
+    } catch (error) {
+      console.error('Error saving settings:', error);
     }
   };
 
@@ -470,6 +497,82 @@ export default function Dashboard() {
             </div>
           ))}
         </div>
+        <div className="form">
+          <h2>Character Settings</h2>
+          <form onSubmit={handleSaveSettings}>
+            <h3>Personality Traits</h3>
+            <div className="form-group">
+              <label>Tone:</label>
+              <select value={settings.tone || 'Grounded'} onChange={(e) => setSettings({ ...settings, tone: e.target.value })}>
+                <option>Grounded</option><option>Enthusiastic</option><option>Empathetic</option><option>Direct</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Communication Style:</label>
+              <select value={settings.communication_style || 'Conversational'} onChange={(e) => setSettings({ ...settings, communication_style: e.target.value })}>
+                <option>Conversational</option><option>Professional</option><option>Casual</option><option>Inspirational</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Energy Level:</label>
+              <input type="range" min="1" max="3" value={settings.energy_level || 2} onChange={(e) => setSettings({ ...settings, energy_level: parseInt(e.target.value) })} />
+              <span>{settings.energy_level === 1 ? 'Low' : settings.energy_level === 2 ? 'Medium' : 'High'}</span>
+            </div>
+
+            <h3>Behavioral Rules</h3>
+            <div className="form-group">
+              <label>Style Mirroring Level (%):</label>
+              <input type="range" min="0" max="100" value={settings.style_mirroring || 50} onChange={(e) => setSettings({ ...settings, style_mirroring: parseInt(e.target.value) })} />
+              <span>{settings.style_mirroring}%</span>
+            </div>
+            <div className="form-group">
+              <label>Grounding Level (%):</label>
+              <input type="range" min="0" max="100" value={settings.grounding_level || 80} onChange={(e) => setSettings({ ...settings, grounding_level: parseInt(e.target.value) })} />
+              <span>{settings.grounding_level}%</span>
+            </div>
+            <div className="form-group">
+              <label>Response Length (Min-Max words):</label>
+              <input type="text" value={settings.response_length || '50-200'} onChange={(e) => setSettings({ ...settings, response_length: e.target.value })} />
+            </div>
+            <div className="form-group">
+              <label>Question Frequency:</label>
+              <select value={settings.question_frequency || 'Sometimes'} onChange={(e) => setSettings({ ...settings, question_frequency: e.target.value })}>
+                <option>Always</option><option>Sometimes</option><option>Rarely</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Offer Timing:</label>
+              <select value={settings.offer_timing || 'Relevant'} onChange={(e) => setSettings({ ...settings, offer_timing: e.target.value })}>
+                <option>Early</option><option>Relevant</option><option>On-Demand</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Repetition Check:</label>
+              <input type="checkbox" checked={settings.repetition_check || true} onChange={(e) => setSettings({ ...settings, repetition_check: e.target.checked })} />
+            </div>
+
+            <h3>Memory and Context Management</h3>
+            <div className="form-group">
+              <label>Context Memory Duration:</label>
+              <select value={settings.memory_duration || '1 Week'} onChange={(e) => setSettings({ ...settings, memory_duration: e.target.value })}>
+                <option>1 Day</option><option>1 Week</option><option>1 Month</option><option>Forever</option>
+              </select>
+            </div>
+
+            <h3>Custom Overrides</h3>
+            <div className="form-group">
+              <label>System Prompt:</label>
+              <textarea value={settings.system_prompt || ''} onChange={(e) => setSettings({ ...settings, system_prompt: e.target.value })} rows="5" />
+            </div>
+            <div className="form-group">
+              <label>Greeting:</label>
+              <input type="text" value={settings.greeting || ''} onChange={(e) => setSettings({ ...settings, greeting: e.target.value })} />
+            </div>
+
+            <button type="submit">Save Settings</button>
+          </form>
+        </div>
+
         <div className="form">
           <h2>Test Context Matching</h2>
           <form onSubmit={handleTestMatching}>
