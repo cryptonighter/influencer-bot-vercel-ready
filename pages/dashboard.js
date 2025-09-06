@@ -16,7 +16,7 @@ export default function Dashboard() {
   const [settings, setSettings] = useState({});
   const [users, setUsers] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
-  const [activeTab, setActiveTab] = useState('management');
+  const [activeTab, setActiveTab] = useState('character');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -277,15 +277,16 @@ export default function Dashboard() {
         </div>
 
         <div className="tabs">
-          <button onClick={() => setActiveTab('content')} className={activeTab === 'content' ? 'active' : ''}>Content & Partners</button>
+          <button onClick={() => setActiveTab('content')} className={activeTab === 'content' ? 'active' : ''}>Paywall & Partners</button>
           <button onClick={() => setActiveTab('users')} className={activeTab === 'users' ? 'active' : ''}>User Insights</button>
-          <button onClick={() => setActiveTab('character')} className={activeTab === 'character' ? 'active' : ''}>Character & Settings</button>
+          <button onClick={() => setActiveTab('character')} className={activeTab === 'character' ? 'active' : ''}>Bot Settings</button>
         </div>
 
         {activeTab === 'content' && (
           <div>
             <div className="form">
               <h2>Add Paywalled Content</h2>
+              <p>Users can buy tokens for AI interactions and unique chatbot programs (coaching, challenges, goal planning).</p>
               <form onSubmit={handleAddContent}>
                 <div className="form-group">
                   <label>Title:</label>
@@ -309,68 +310,7 @@ export default function Dashboard() {
               </form>
             </div>
 
-            <div className="form">
-              <h2>Add Partner</h2>
-              <form onSubmit={handleAddPartner}>
-                <div className="form-group">
-                  <label>Name:</label>
-                  <input type="text" value={newPartner.name} onChange={(e) => setNewPartner({ ...newPartner, name: e.target.value })} required />
-                </div>
-                <div className="form-group">
-                  <label>Contact Email:</label>
-                  <input type="email" value={newPartner.contact_email} onChange={(e) => setNewPartner({ ...newPartner, contact_email: e.target.value })} />
-                </div>
-                <div className="form-group">
-                  <label>Referral Fee (%):</label>
-                  <input type="number" value={newPartner.referral_fee_percent} onChange={(e) => setNewPartner({ ...newPartner, referral_fee_percent: parseInt(e.target.value) })} min="0" max="100" />
-                </div>
-                <button type="submit">Add Partner</button>
-              </form>
-            </div>
-
-            <div className="form">
-              <h2>Add Offer</h2>
-              <form onSubmit={handleAddOffer}>
-                <div className="form-group">
-                  <label>Partner:</label>
-                  <select value={newOffer.partner_id} onChange={(e) => setNewOffer({ ...newOffer, partner_id: e.target.value })} required>
-                    <option value="">Select Partner</option>
-                    {partners.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Title:</label>
-                  <input type="text" value={newOffer.title} onChange={(e) => setNewOffer({ ...newOffer, title: e.target.value })} required />
-                </div>
-                <div className="form-group">
-                  <label>Description:</label>
-                  <textarea value={newOffer.description} onChange={(e) => setNewOffer({ ...newOffer, description: e.target.value })} rows="3" />
-                </div>
-                <div className="form-group">
-                  <label>Category:</label>
-                  <input type="text" value={newOffer.category} onChange={(e) => setNewOffer({ ...newOffer, category: e.target.value })} placeholder="e.g., pregnancy, career" required />
-                </div>
-                <div className="form-group">
-                  <label>Price (cents):</label>
-                  <input type="number" value={newOffer.price_cents} onChange={(e) => setNewOffer({ ...newOffer, price_cents: parseInt(e.target.value) })} min="0" />
-                </div>
-                <div className="form-group">
-                  <label>Discount (%):</label>
-                  <input type="number" value={newOffer.discount_percent} onChange={(e) => setNewOffer({ ...newOffer, discount_percent: parseInt(e.target.value) })} min="0" max="100" />
-                </div>
-                <div className="form-group">
-                  <label>Referral Link:</label>
-                  <input type="url" value={newOffer.referral_link} onChange={(e) => setNewOffer({ ...newOffer, referral_link: e.target.value })} required />
-                </div>
-                <div className="form-group">
-                  <label>Payment Type:</label>
-                  <select value={newOffer.payment_type} onChange={(e) => setNewOffer({ ...newOffer, payment_type: e.target.value })}>
-                    <option value="external">External</option><option value="telegram">Telegram</option>
-                  </select>
-                </div>
-                <button type="submit">Add Offer</button>
-              </form>
-            </div>
+            
 
             <div className="list">
               <h2>Partners & Offers</h2>
@@ -378,20 +318,12 @@ export default function Dashboard() {
               {partners.map(p => (
                 <div key={p.id} className="list-item">
                   <strong>{p.name}</strong> - {p.contact_email} - {p.referral_fee_percent}% fee
-                  <button onClick={() => handleDelete('partner', p.id)} style={{ marginLeft: '10px', background: '#ff0000', color: '#fff' }}>x</button>
                 </div>
               ))}
               <h3>Offers</h3>
               {offers.map(o => (
                 <div key={o.id} className="list-item">
                   <strong>{o.title}</strong> - {o.category} - ${(o.price_cents / 100).toFixed(2)} ({o.discount_percent}% off)
-                  <button onClick={() => handleDelete('offer', o.id)} style={{ marginLeft: '10px', background: '#ff0000', color: '#fff' }}>x</button>
-                </div>
-              ))}
-              <h3>Referrals</h3>
-              {referrals.map(r => (
-                <div key={r.id} className="list-item">
-                  User: {r.users?.external_id} - Offer: {r.offers?.title} - Status: {r.status} - Commission: ${(r.commission_earned_cents / 100).toFixed(2)}
                 </div>
               ))}
             </div>
