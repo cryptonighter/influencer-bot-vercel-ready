@@ -187,7 +187,7 @@ export default function Dashboard() {
       const res = await fetch(`/api/admin/generate-strategy/${userId}`);
       if (res.ok) {
         const data = await res.json();
-        alert(`Strategy: ${data.strategy}`);
+        setSelectedUser({ ...selectedUser, strategy: data.strategy });
       } else {
         alert('Failed to generate strategy');
       }
@@ -277,12 +277,12 @@ export default function Dashboard() {
         </div>
 
         <div className="tabs">
-          <button onClick={() => setActiveTab('management')} className={activeTab === 'management' ? 'active' : ''}>Management</button>
+          <button onClick={() => setActiveTab('content')} className={activeTab === 'content' ? 'active' : ''}>Content & Partners</button>
           <button onClick={() => setActiveTab('users')} className={activeTab === 'users' ? 'active' : ''}>User Insights</button>
-          <button onClick={() => setActiveTab('settings')} className={activeTab === 'settings' ? 'active' : ''}>Settings</button>
+          <button onClick={() => setActiveTab('character')} className={activeTab === 'character' ? 'active' : ''}>Character & Settings</button>
         </div>
 
-        {activeTab === 'management' && (
+        {activeTab === 'content' && (
           <div>
             <div className="form">
               <h2>Add Paywalled Content</h2>
@@ -373,27 +373,22 @@ export default function Dashboard() {
             </div>
 
             <div className="list">
-              <h2>Partners</h2>
+              <h2>Partners & Offers</h2>
+              <h3>Partners</h3>
               {partners.map(p => (
                 <div key={p.id} className="list-item">
                   <strong>{p.name}</strong> - {p.contact_email} - {p.referral_fee_percent}% fee
                   <button onClick={() => handleDelete('partner', p.id)} style={{ marginLeft: '10px', background: '#ff0000', color: '#fff' }}>x</button>
                 </div>
               ))}
-            </div>
-
-            <div className="list">
-              <h2>Offers</h2>
+              <h3>Offers</h3>
               {offers.map(o => (
                 <div key={o.id} className="list-item">
                   <strong>{o.title}</strong> - {o.category} - ${(o.price_cents / 100).toFixed(2)} ({o.discount_percent}% off)
                   <button onClick={() => handleDelete('offer', o.id)} style={{ marginLeft: '10px', background: '#ff0000', color: '#fff' }}>x</button>
                 </div>
               ))}
-            </div>
-
-            <div className="list">
-              <h2>Referrals</h2>
+              <h3>Referrals</h3>
               {referrals.map(r => (
                 <div key={r.id} className="list-item">
                   User: {r.users?.external_id} - Offer: {r.offers?.title} - Status: {r.status} - Commission: ${(r.commission_earned_cents / 100).toFixed(2)}
@@ -416,16 +411,33 @@ export default function Dashboard() {
             {selectedUser && (
               <div className="user-detail">
                 <h3>Details for User {selectedUser.external_id}</h3>
-                <p><strong>Facts:</strong> {selectedUser.facts || 'None'}</p>
-                <p><strong>Offers Sent:</strong> {selectedUser.offers_sent || 'None'}</p>
-                <p><strong>Strategy:</strong> {selectedUser.strategy || 'Generate below'}</p>
-                <button onClick={() => generateStrategy(selectedUser.id)}>Generate Strategy</button>
+                <div>
+                  <h4>Facts</h4>
+                  <ul>
+                    {Object.entries(JSON.parse(selectedUser.facts || '{}')).map(([key, value]) => (
+                      <li key={key}><strong>{key}:</strong> {value}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <h4>Offers Sent</h4>
+                  <ul>
+                    {selectedUser.offers_sent.split(', ').map((offer, idx) => (
+                      <li key={idx}>{offer}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <h4>Strategy</h4>
+                  <textarea value={selectedUser.strategy || ''} readOnly rows="5" placeholder="Click Generate Strategy" />
+                  <button onClick={() => generateStrategy(selectedUser.id)}>Generate Strategy</button>
+                </div>
               </div>
             )}
           </div>
         )}
 
-        {activeTab === 'settings' && (
+        {activeTab === 'character' && (
           <div>
             <div className="form">
               <h2>Character Settings</h2>
