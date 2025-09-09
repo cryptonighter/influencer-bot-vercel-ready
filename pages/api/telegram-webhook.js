@@ -43,40 +43,40 @@ function truncateText(text, maxChars = 10000) {
   return text.length > maxChars ? text.substring(0, maxChars) + '...' : text;
 }
 
-// AI response helper
+// AI response helper with theme/fact extraction and context memory
 async function generateAIResponse(userId, sessionId, userMessage) {
+  // Fetch recent messages and conversation logs for context
   const { data: recentMessages } = await supabaseAdmin
     .from('messages')
     .select('body, direction')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
-    .limit(5);
+    .limit(10);
+
+  const { data: logs } = await supabaseAdmin
+    .from('conversation_logs')
+    .select('summary, topics, facts')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(3);
 
   const context = truncateText(
     recentMessages.reverse().map(m => `${m.direction}: ${m.body}`).join('\n'),
     5000
   );
 
-  const userEmbedding = await generateEmbedding(userMessage);
-  let retrievedContext = '';
-  if (userEmbedding) {
-    const { data: similar } = await supabaseAdmin.rpc('similarity_search', {
-      query_embedding: userEmbedding,
-      match_threshold: 0.7,
-      match_count: 3
-    });
-    retrievedContext = similar ? truncateText(similar.map(s => s.content).slice(0, 3).join('\n'), 3000) : '';
-  }
+  const logContext = logs ? logs.map(l => `Summary: ${l.summary}, Topics: ${l.topics.join(', ')}, Facts: ${JSON.stringify(l.facts)}`).join('\n') : '';
 
-  const systemPrompt = `You are a charismatic digital influencer. Engage conversationally, build personal connections, and subtly promote paywalled content. Keep responses friendly and under 200 words.`;
+  // Enhanced system prompt for extraction, tone, and guidance
+  const systemPrompt = `You are a charismatic digital influencer guiding users toward self-development. Analyze the conversation for themes (e.g., career, relationships) and surface facts (names, locations, plans, ambitions, relationship status). Match the user's tone/language style subtly but maintain a positive, guiding voice focused on growth and opportunities. If unsure about a fact/theme, ask the user for clarification. Keep responses under 200 words. After responding, provide a JSON summary: {"summary": "brief overview", "topics": ["list"], "facts": {"key": "value"}, "embed_worthy": true/false}.`;
 
   const payload = {
     model: 'openai/gpt-4o-mini',
     messages: [
       { role: 'system', content: systemPrompt },
-      { role: 'user', content: `Context:\n${context}\n\nRetrieved:\n${retrievedContext}\n\nUser: ${userMessage}` }
+      { role: 'user', content: `Previous Logs:\n${logContext}\n\nRecent Context:\n${context}\n\nUser: ${userMessage}` }
     ],
-    max_tokens: 200
+    max_tokens: 300  // Extra for JSON
   };
 
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -94,7 +94,40 @@ async function generateAIResponse(userId, sessionId, userMessage) {
   }
 
   const data = await response.json();
-  return data.choices[0].message.content;
+  const fullResponse = data.choices[0].message.content;
+
+  // Split response and JSON
+  const parts = fullResponse.split('\n---\n');  // Assume AI separates with ---
+  const aiMessage = parts[0];
+  const jsonPart = parts[1];
+
+  let summaryData = {};
+  try {
+    summaryData = JSON.parse(jsonPart);
+  } catch (err) {
+    console.error('Failed to parse summary JSON:', err);
+  }
+
+  // Save to conversation_logs
+  if (summaryData.summary) {
+    await supabaseAdmin
+      .from('conversation_logs')
+      .insert([{
+        user_id: userId,
+        session_id: sessionId,
+        summary: summaryData.summary,
+        topics: summaryData.topics || [],
+        facts: summaryData.facts || {}
+      }]);
+  }
+
+  // Generate embedding only if embed_worthy
+  let embedding = null;
+  if (summaryData.embed_worthy) {
+    embedding = await generateEmbedding(`${summaryData.summary} ${JSON.stringify(summaryData.facts)}`);
+  }
+
+  return { message: aiMessage, embedding, summaryData };
 }
 
 // Upsert user
@@ -198,18 +231,21 @@ export default async function handler(req, res) {
       .select()
       .single();
 
-    const embedding = await generateEmbedding(message.text);
+    const { message: aiResponse, embedding } = await generateAIResponse(user.id, session.id, message.text);
+
+    // Store embedding if generated
     if (embedding) {
       await supabaseAdmin
         .from('embeddings')
         .insert([{ user_id: user.id, message_id: insertedMessage.id, content: message.text, embedding, source: 'telegram' }]);
     }
 
-    const aiResponse = await generateAIResponse(user.id, session.id, message.text);
-
     await supabaseAdmin
       .from('messages')
       .insert([{ session_id: session.id, user_id: user.id, direction: 'bot', body: aiResponse, body_json: { ai_generated: true } }]);
+
+    // 4-6 second delay
+    await new Promise(resolve => setTimeout(resolve, 5000));
 
     if (process.env.TELEGRAM_BOT_TOKEN) {
       await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
@@ -232,5 +268,3 @@ export default async function handler(req, res) {
 }
 
 export const config = { api: { bodyParser: { sizeLimit: '1mb' } } };
-
-
