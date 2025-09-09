@@ -49,7 +49,7 @@ ALTER TABLE offers ENABLE ROW LEVEL SECURITY;
 /* To track earnings */
 CREATE TABLE IF NOT EXISTS referrals (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES "users"(id) ON DELETE CASCADE,
   offer_id UUID REFERENCES offers(id) ON DELETE CASCADE,
   referral_link TEXT,
   status TEXT DEFAULT 'sent',             -- 'sent', 'clicked', 'purchased'
