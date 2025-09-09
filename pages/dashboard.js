@@ -16,7 +16,7 @@ export default function Dashboard() {
   const [settings, setSettings] = useState({});
   const [users, setUsers] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
-  const [activeTab, setActiveTab] = useState('character');
+  const [activeTab, setActiveTab] = useState('users');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

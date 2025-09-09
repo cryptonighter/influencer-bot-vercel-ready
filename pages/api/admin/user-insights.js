@@ -6,10 +6,10 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Fetch users with message counts
+    // Fetch users
     const { data: users, error } = await supabaseAdmin
       .from('users')
-      .select('*, messages(count)')
+      .select('*')
       .order('last_seen', { ascending: false });
 
     if (error) {
@@ -17,7 +17,7 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: error.message });
     }
 
-    // Enrich with facts and offers
+    // Enrich with facts, offers, and message counts
     const enrichedUsers = await Promise.all(users.map(async (user) => {
       const { data: logs } = await supabaseAdmin
         .from('conversation_logs')
@@ -31,11 +31,16 @@ export default async function handler(req, res) {
         .select('offers(title), status')
         .eq('user_id', user.id);
 
+      const { count: messageCount } = await supabaseAdmin
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id);
+
       return {
         ...user,
         facts: logs?.[0]?.facts ? JSON.stringify(logs[0].facts) : 'None',
         offers_sent: userReferrals?.map(r => `${r.offers?.title} (${r.status})`).join(', ') || 'None',
-        message_count: user.messages?.[0]?.count || 0
+        message_count: messageCount || 0
       };
     }));
 
