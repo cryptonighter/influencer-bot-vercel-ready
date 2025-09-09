@@ -7,7 +7,7 @@ export default async function handler(req, res) {
     try {
       const { data, error } = await supabaseAdmin
         .from('referrals')
-        .select('*, offers(title), users(external_id)')
+        .select('*, offers(title)')
         .order('created_at', { ascending: false });
       if (error) {
         console.error('GET referrals error:', error);
