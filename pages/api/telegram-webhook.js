@@ -213,15 +213,20 @@ async function generateAIResponse(userId, sessionId, userMessage) {
   if (newOffers.length > 0) {
     offerContext = newOffers.map(o =>
       `Offer: ${o.title} - ${o.description}. Price: ${(o.price_cents / 100).toFixed(2)} (${o.discount_percent}% off!). Link: ${o.referral_link}`
-    ).join('\n');
+    ).join('
+');
   }
 
   let contextInfo = '';
   if (relevantContexts && relevantContexts.length > 0) {
     contextInfo = relevantContexts.map(c =>
       `Context: ${c.title} (${c.type}) - ${c.description}. Link: ${c.link}`
-    ).join('\n');
+    ).join('
+');
   }
+
+  console.log('Offer context for AI:', offerContext);
+  console.log('Context info for AI:', contextInfo);
 
   // Save to conversation_logs
   if (summaryData.summary) {
