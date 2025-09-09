@@ -67,45 +67,33 @@ async function generateAIResponse(userId, sessionId, userMessage) {
 
   const logContext = logs ? logs.map(l => `Summary: ${l.summary}, Topics: ${l.topics.join(', ')}, Facts: ${JSON.stringify(l.facts)}`).join('\n') : '';
 
-  // Enhanced system prompt for extraction, tone, and guidance
-  const systemPrompt = `You are a charismatic digital influencer guiding users toward self-development. Analyze the conversation for themes (e.g., career, relationships) and surface facts (names, locations, plans, ambitions, relationship status). Match the user's tone/language style subtly but maintain a positive, guiding voice focused on growth and opportunities. If unsure about a fact/theme, ask the user for clarification. Keep responses under 200 words. After responding, provide a JSON summary: {"summary": "brief overview", "topics": ["list"], "facts": {"key": "value"}, "embed_worthy": true/false}.`;
-
-  const payload = {
+  // Generate summary/topics/facts BEFORE the response, based on user input
+  const analysisPayload = {
     model: 'openai/gpt-4o-mini',
     messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: `Previous Logs:\n${logContext}\n\nRecent Context:\n${context}\n\nUser: ${userMessage}` }
+      { role: 'system', content: 'Analyze the user message and context for themes, facts, and if it\'s worth embedding. Respond with JSON: {"summary": "brief overview of user input", "topics": ["list"], "facts": {"key": "value"}, "embed_worthy": true/false}.' },
+      { role: 'user', content: `Context:\n${logContext}\n\nRecent:\n${context}\n\nUser: ${userMessage}` }
     ],
-    max_tokens: 300  // Extra for JSON
+    max_tokens: 200
   };
 
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+  const analysisResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(analysisPayload)
   });
 
-  if (!response.ok) {
-    console.error('AI API failed:', response.statusText);
-    return "Sorry, I'm having trouble responding right now. Let's chat later!";
-  }
-
-  const data = await response.json();
-  const fullResponse = data.choices[0].message.content;
-
-  // Split response and JSON
-  const parts = fullResponse.split('\n---\n');  // Assume AI separates with ---
-  const aiMessage = parts[0];
-  const jsonPart = parts[1];
-
-  let summaryData = {};
-  try {
-    summaryData = JSON.parse(jsonPart);
-  } catch (err) {
-    console.error('Failed to parse summary JSON:', err);
+  let summaryData = { summary: '', topics: [], facts: {}, embed_worthy: false };
+  if (analysisResponse.ok) {
+    const analysisData = await analysisResponse.json();
+    try {
+      summaryData = JSON.parse(analysisData.choices[0].message.content);
+    } catch (err) {
+      console.error('Failed to parse analysis JSON:', err);
+    }
   }
 
   // Save to conversation_logs
@@ -121,11 +109,40 @@ async function generateAIResponse(userId, sessionId, userMessage) {
       }]);
   }
 
-  // Generate embedding only if embed_worthy
+  // Generate embedding if worthy
   let embedding = null;
   if (summaryData.embed_worthy) {
-    embedding = await generateEmbedding(`${summaryData.summary} ${JSON.stringify(summaryData.facts)}`);
+    embedding = await generateEmbedding(userMessage);  // Based on user message, not bot response
   }
+
+  // Now generate the bot response
+  const systemPrompt = `You are a grounded, practical influencer guiding users toward self-development. Match the user's tone subtly, focus on helpful, realistic advice, and promote paywalled content naturally. Keep responses under 200 words.`;
+
+  const responsePayload = {
+    model: 'openai/gpt-4o-mini',
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: `Context:\n${logContext}\n\nRecent:\n${context}\n\nUser: ${userMessage}` }
+    ],
+    max_tokens: 200
+  };
+
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(responsePayload)
+  });
+
+  if (!response.ok) {
+    console.error('AI API failed:', response.statusText);
+    return "Sorry, I'm having trouble responding right now. Let's chat later!";
+  }
+
+  const data = await response.json();
+  const aiMessage = data.choices[0].message.content;  // Only the message, no JSON
 
   return { message: aiMessage, embedding, summaryData };
 }
@@ -244,8 +261,8 @@ export default async function handler(req, res) {
       .from('messages')
       .insert([{ session_id: session.id, user_id: user.id, direction: 'bot', body: aiResponse, body_json: { ai_generated: true } }]);
 
-    // 4-6 second delay
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    // 4 second delay
+    await new Promise(resolve => setTimeout(resolve, 4000));
 
     if (process.env.TELEGRAM_BOT_TOKEN) {
       await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
