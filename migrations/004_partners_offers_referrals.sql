@@ -1,4 +1,9 @@
-/* Partners Table */
+/* -------------------------------------------------
+   Ensure the uuid-ossp extension is available
+   ------------------------------------------------- */
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+/* -------------------- Partners ------------------- */
 DROP TABLE IF EXISTS partners CASCADE;
 CREATE TABLE IF NOT EXISTS partners (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -11,7 +16,7 @@ CREATE TABLE IF NOT EXISTS partners (
 );
 ALTER TABLE partners ENABLE ROW LEVEL SECURITY;
 
-/* Offers Table */
+/* --------------------- Offers ------------------- */
 DROP TABLE IF EXISTS offers CASCADE;
 CREATE TABLE IF NOT EXISTS offers (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -29,9 +34,7 @@ CREATE TABLE IF NOT EXISTS offers (
 );
 ALTER TABLE offers ENABLE ROW LEVEL SECURITY;
 
-/* -------------------------------------------------
-   Referrals Table – create if missing
-   ------------------------------------------------- */
+/* -------------------- Referrals ----------------- */
 CREATE TABLE IF NOT EXISTS referrals (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID,
@@ -43,88 +46,112 @@ CREATE TABLE IF NOT EXISTS referrals (
 );
 ALTER TABLE referrals ENABLE ROW LEVEL SECURITY;
 
-/* -------------------------------------------------
-   Character Context Table – for bot's personality/context
-   ------------------------------------------------- */
+/* -------------- Character Context ---------------- */
 CREATE TABLE IF NOT EXISTS character_context (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  type TEXT,  -- 'image', 'post', 'location', 'blog'
+  type TEXT,                     -- 'image', 'post', 'location', 'blog'
   title TEXT NOT NULL,
   description TEXT,
-  tags TEXT[],  -- Array of tags for matching
-  link TEXT,  -- URL to image/post/etc.
+  tags TEXT[],                   -- Array of tags for matching
+  link TEXT,                     -- URL to image/post/etc.
   active BOOLEAN DEFAULT TRUE,
   created_at timestamptz DEFAULT now()
 );
 ALTER TABLE character_context ENABLE ROW LEVEL SECURITY;
 
-/* Ensure required columns exist (idempotent) */
+/* ---- Ensure required columns exist (idempotent) ---- */
 DO $
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_name = 'offers' AND column_name = 'partner_id') THEN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'offers' AND column_name = 'partner_id'
+  ) THEN
     ALTER TABLE offers ADD COLUMN partner_id UUID;
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_name = 'offers' AND column_name = 'category') THEN
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'offers' AND column_name = 'category'
+  ) THEN
     ALTER TABLE offers ADD COLUMN category TEXT;
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_name = 'offers' AND column_name = 'discount_percent') THEN
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'offers' AND column_name = 'discount_percent'
+  ) THEN
     ALTER TABLE offers ADD COLUMN discount_percent INT DEFAULT 0;
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_name = 'offers' AND column_name = 'payment_type') THEN
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'offers' AND column_name = 'payment_type'
+  ) THEN
     ALTER TABLE offers ADD COLUMN payment_type TEXT DEFAULT 'external';
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_name = 'referrals' AND column_name = 'commission_earned_cents') THEN
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'referrals' AND column_name = 'commission_earned_cents'
+  ) THEN
     ALTER TABLE referrals ADD COLUMN commission_earned_cents INT DEFAULT 0;
   END IF;
 END;
 $;
 
-/* Add foreign‑key constraints if they don’t exist */
+/* ---------- Add foreign‑key constraints (if missing) ---------- */
 DO $
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints
-                 WHERE constraint_name = 'offers_partner_id_fkey') THEN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE constraint_name = 'offers_partner_id_fkey'
+  ) THEN
     ALTER TABLE offers
-      ADD CONSTRAINT offers_partner_id_fkey FOREIGN KEY (partner_id)
-      REFERENCES partners(id) ON DELETE CASCADE;
+      ADD CONSTRAINT offers_partner_id_fkey
+      FOREIGN KEY (partner_id) REFERENCES partners(id) ON DELETE CASCADE;
   END IF;
 
-  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints
-                 WHERE constraint_name = 'referrals_user_id_fkey') THEN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE constraint_name = 'referrals_user_id_fkey'
+  ) THEN
     ALTER TABLE referrals
-      ADD CONSTRAINT referrals_user_id_fkey FOREIGN KEY (user_id)
-      REFERENCES auth.users(id) ON DELETE CASCADE;
+      ADD CONSTRAINT referrals_user_id_fkey
+      FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
   END IF;
 
-  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints
-                 WHERE constraint_name = 'referrals_offer_id_fkey') THEN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE constraint_name = 'referrals_offer_id_fkey'
+  ) THEN
     ALTER TABLE referrals
-      ADD CONSTRAINT referrals_offer_id_fkey FOREIGN KEY (offer_id)
-      REFERENCES offers(id) ON DELETE CASCADE;
+      ADD CONSTRAINT referrals_offer_id_fkey
+      FOREIGN KEY (offer_id) REFERENCES offers(id) ON DELETE CASCADE;
   END IF;
 END;
 $;
 
-/* Indexes – created only if they don’t already exist */
+/* --------------------------- Indexes --------------------------- */
 DO $
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_indexes
-                 WHERE schemaname = 'public' AND indexname = 'idx_offers_category') THEN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_indexes
+    WHERE schemaname = 'public' AND indexname = 'idx_offers_category'
+  ) THEN
     CREATE INDEX idx_offers_category ON offers (category);
   END IF;
 
-  IF NOT EXISTS (SELECT 1 FROM pg_indexes
-                 WHERE schemaname = 'public' AND indexname = 'idx_referrals_user') THEN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_indexes
+    WHERE schemaname = 'public' AND indexname = 'idx_referrals_user'
+  ) THEN
     CREATE INDEX idx_referrals_user ON referrals (user_id);
   END IF;
 
-  IF NOT EXISTS (SELECT 1 FROM pg_indexes
-                 WHERE schemaname = 'public' AND indexname = 'idx_character_context_tags') THEN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_indexes
+    WHERE schemaname = 'public' AND indexname = 'idx_character_context_tags'
+  ) THEN
     CREATE INDEX idx_character_context_tags ON character_context USING gin (tags);
   END IF;
 END;
