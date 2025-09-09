@@ -2,18 +2,14 @@
 import { supabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { verifyTelegramRequest } from "../../utils/verifyTelegram.js";
 
-// Helper: Generate embedding using chat completion
+// Helper: Generate embedding using embeddings API
 async function generateEmbedding(text) {
   const payload = {
-    model: 'openai/gpt-4o-mini', // choose appropriate model
-    messages: [
-      { role: 'system', content: 'You are a helpful assistant that returns a numeric embedding array.' },
-      { role: 'user', content: `Return a JSON array of numbers as an embedding for this text: "${text}"` }
-    ],
-    max_tokens: 200
+    model: 'openai/text-embedding-ada-002', // Use a proper embedding model
+    input: text
   };
 
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+  const response = await fetch('https://openrouter.ai/api/v1/embeddings', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
@@ -29,16 +25,12 @@ async function generateEmbedding(text) {
 
   const data = await response.json();
   try {
-    let content = data.choices[0].message.content.trim();
-    // Strip markdown code block if present
-    if (content.startsWith('```json')) {
-      content = content.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+    if (data.data && data.data[0] && data.data[0].embedding) {
+      return data.data[0].embedding;
     }
-    const embedding = JSON.parse(content);
-    if (Array.isArray(embedding)) return embedding;
     return null;
   } catch (err) {
-    console.error('Failed to parse embedding JSON:', err, data.choices[0].message.content);
+    console.error('Failed to parse embedding:', err);
     return null;
   }
 }
