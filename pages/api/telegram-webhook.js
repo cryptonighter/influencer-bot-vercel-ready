@@ -312,12 +312,6 @@ ${contextInfo}` }
 
   let aiMessage = "Sorry, I'm having trouble responding right now. Let's chat later!";
   try {
-    let aiMessage = "Sorry, I'm having trouble responding right now. Let's chat later!";
-  try {
-    let aiMessage = "Sorry, I'm having trouble responding right now. Let's chat later!";
-  try {
-    let aiMessage = "Sorry, I'm having trouble responding right now. Let's chat later!";
-  try {
     console.log('Sending AI request with payload:', JSON.stringify(responsePayload, null, 2));
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
@@ -342,15 +336,6 @@ ${contextInfo}` }
     } else {
       console.error('Unexpected AI response format:', data);
     }
-  } catch (aiError) {
-    console.error('AI API fetch error:', aiError);
-  }
-  } catch (aiError) {
-    console.error('AI API fetch error:', aiError);
-  }
-  } catch (aiError) {
-    console.error('AI API fetch error:', aiError);
-  }
   } catch (aiError) {
     console.error('AI API fetch error:', aiError);
   }
