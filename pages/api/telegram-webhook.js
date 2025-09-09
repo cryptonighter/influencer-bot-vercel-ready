@@ -67,7 +67,7 @@ function splitMessage(message) {
 
 // AI response helper with theme/fact extraction and context memory
 async function generateAIResponse(userId, sessionId, userMessage) {
-  // Fetch recent messages and conversation logs for context
+  // Fetch recent messages for immediate context
   const { data: recentMessages } = await supabaseAdmin
     .from('messages')
     .select('body, direction')
@@ -75,19 +75,26 @@ async function generateAIResponse(userId, sessionId, userMessage) {
     .order('created_at', { ascending: false })
     .limit(10);
 
-  const { data: logs } = await supabaseAdmin
-    .from('conversation_logs')
-    .select('summary, topics, facts')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(3);
-
   const context = truncateText(
     recentMessages.reverse().map(m => `${m.direction}: ${m.body}`).join('\n'),
     5000
   );
 
-  const logContext = logs ? logs.map(l => `Summary: ${l.summary}, Topics: ${l.topics.join(', ')}, Facts: ${JSON.stringify(l.facts)}`).join('\n') : '';
+  // Fetch relevant conversation logs based on current topics
+  let logContext = '';
+  if (summaryData.topics && summaryData.topics.length > 0) {
+    const { data: relevantLogs } = await supabaseAdmin
+      .from('conversation_logs')
+      .select('summary, topics, facts')
+      .eq('user_id', userId)
+      .overlaps('topics', summaryData.topics)
+      .order('created_at', { ascending: false })
+      .limit(3);
+
+    if (relevantLogs && relevantLogs.length > 0) {
+      logContext = relevantLogs.map(l => `Summary: ${l.summary}, Topics: ${l.topics.join(', ')}, Facts: ${JSON.stringify(l.facts)}`).join('\n');
+    }
+  }
 
   // Generate summary/topics/facts BEFORE the response, based on user input
   const analysisPayload = {
