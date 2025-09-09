@@ -167,24 +167,33 @@ async function generateAIResponse(userId, sessionId, userMessage) {
 
   let relevantContexts = [];
   if (allContexts && Array.isArray(allContexts) && allContexts.length > 0) {
+    // Create a new array to avoid mutation
+    const contextsCopy = allContexts.slice();
+
     // Filter for visual/content types
-    const filtered = allContexts.filter(function(context) {
-      return context && context.type && ['post', 'image'].includes(context.type);
-    });
+    const filtered = [];
+    for (let i = 0; i < contextsCopy.length; i++) {
+      const context = contextsCopy[i];
+      if (context && context.type && ['post', 'image'].includes(context.type)) {
+        filtered.push(context);
+      }
+    }
 
     // Sort by number of matching tags
-    const sorted = filtered.sort(function(a, b) {
-      const aMatches = (a.tags && Array.isArray(a.tags)) ? a.tags.filter(function(tag) {
-        return summaryData.topics && summaryData.topics.includes(tag);
-      }).length : 0;
-      const bMatches = (b.tags && Array.isArray(b.tags)) ? b.tags.filter(function(tag) {
-        return summaryData.topics && summaryData.topics.includes(tag);
-      }).length : 0;
+    filtered.sort(function(itemA, itemB) {
+      const aMatches = (itemA.tags && Array.isArray(itemA.tags)) ?
+        itemA.tags.filter(function(tag) {
+          return summaryData.topics && Array.isArray(summaryData.topics) && summaryData.topics.includes(tag);
+        }).length : 0;
+      const bMatches = (itemB.tags && Array.isArray(itemB.tags)) ?
+        itemB.tags.filter(function(tag) {
+          return summaryData.topics && Array.isArray(summaryData.topics) && summaryData.topics.includes(tag);
+        }).length : 0;
       return bMatches - aMatches;
     });
 
     // Limit to top 2
-    relevantContexts = sorted.slice(0, 2);
+    relevantContexts = filtered.slice(0, 2);
   }
 
   console.log('User topics:', summaryData.topics);
