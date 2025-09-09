@@ -48,6 +48,23 @@ function truncateText(text, maxChars = 10000) {
   return text.length > maxChars ? text.substring(0, maxChars) + '...' : text;
 }
 
+// Split message into parts for long responses
+function splitMessage(message) {
+  const paragraphs = message.split('\n\n').filter(p => p.trim().length > 0);
+  if (paragraphs.length <= 1) {
+    // If short, check word count
+    const words = message.split(' ');
+    if (words.length < 100) return [message];
+    // Split into chunks of ~50 words
+    const chunks = [];
+    for (let i = 0; i < words.length; i += 50) {
+      chunks.push(words.slice(i, i + 50).join(' '));
+    }
+    return chunks;
+  }
+  return paragraphs;
+}
+
 // AI response helper with theme/fact extraction and context memory
 async function generateAIResponse(userId, sessionId, userMessage) {
   // Fetch recent messages and conversation logs for context
@@ -133,13 +150,29 @@ async function generateAIResponse(userId, sessionId, userMessage) {
   const referredOfferIds = existingReferrals ? existingReferrals.map(r => r.offer_id) : [];
   const newOffers = relevantOffers.filter(o => !referredOfferIds.includes(o.id));
 
+  // Query relevant character contexts based on topics
+  const { data: relevantContexts } = await supabaseAdmin
+    .from('character_context')
+    .select('id, type, title, description, tags, link')
+    .eq('active', true)
+    .overlaps('tags', summaryData.topics || [])
+    .limit(2);
+
   console.log('User topics:', summaryData.topics);
   console.log('Relevant offers found:', relevantOffers.length, 'New offers:', newOffers.length);
+  console.log('Relevant contexts found:', relevantContexts?.length || 0);
 
   let offerContext = '';
   if (newOffers.length > 0) {
     offerContext = newOffers.map(o =>
       `Offer: ${o.title} - ${o.description}. Price: ${(o.price_cents / 100).toFixed(2)} (${o.discount_percent}% off!). Link: ${o.referral_link}`
+    ).join('\n');
+  }
+
+  let contextInfo = '';
+  if (relevantContexts && relevantContexts.length > 0) {
+    contextInfo = relevantContexts.map(c =>
+      `Context: ${c.title} (${c.type}) - ${c.description}. Link: ${c.link}`
     ).join('\n');
   }
 
@@ -163,13 +196,13 @@ async function generateAIResponse(userId, sessionId, userMessage) {
   }
 
   // Now generate the bot response with strategic offer integration
-  const systemPrompt = `You are a grounded, practical influencer guiding users toward self-development. Match the user's tone subtly, focus on helpful, realistic advice. Engage in natural conversation—ask questions, build rapport, and vary your responses. If relevant offers are provided, recommend them naturally and accurately based on the user's needs, but only if it fits the flow. Do not invent offers—only use the ones listed. Avoid repetition; if an offer has been mentioned before, focus on other aspects or ask for more details. Keep responses under 200 words.`;
+  const systemPrompt = `You are a grounded, practical influencer guiding users toward self-development. Match the user's tone subtly, focus on helpful, realistic advice. If relevant offers or contexts are provided, reference them naturally and accurately based on the user's needs, but only if it fits the flow. For contexts, suggest checking your socials if relevant (e.g., "You might like my post on this topic"). Do not invent offers/contexts—only use the ones listed. Avoid repetition; if something has been mentioned before, focus on other aspects or ask for more details. Keep responses under 200 words.`;
 
   const responsePayload = {
     model: 'openai/gpt-4o-mini',
     messages: [
       { role: 'system', content: systemPrompt },
-      { role: 'user', content: `Context:\n${logContext}\n\nRecent:\n${context}\n\nUser: ${userMessage}\n\nRelevant Offers:\n${offerContext}` }
+      { role: 'user', content: `Context:\n${logContext}\n\nRecent:\n${context}\n\nUser: ${userMessage}\n\nRelevant Offers:\n${offerContext}\n\nRelevant Contexts:\n${contextInfo}` }
     ],
     max_tokens: 200
   };
@@ -189,7 +222,12 @@ async function generateAIResponse(userId, sessionId, userMessage) {
   }
 
   const data = await response.json();
-  const aiMessage = data.choices[0].message.content;
+  let aiMessage = data.choices[0].message.content;
+
+  // Remove "Mia:" prefix if present
+  if (aiMessage.startsWith('Mia:')) {
+    aiMessage = aiMessage.substring(4).trim();
+  }
 
   // Log referrals for new offers only
   if (newOffers.length > 0) {
@@ -320,15 +358,22 @@ export default async function handler(req, res) {
       .from('messages')
       .insert([{ session_id: session.id, user_id: user.id, direction: 'bot', body: aiResponse, body_json: { ai_generated: true } }]);
 
-    // 4 second delay
-    await new Promise(resolve => setTimeout(resolve, 4000));
-
+    // Split and send message parts
+    const messageParts = splitMessage(aiResponse);
     if (process.env.TELEGRAM_BOT_TOKEN) {
-      await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: message.chat.id, text: aiResponse, reply_to_message_id: message.message_id })
-      });
+      for (let i = 0; i < messageParts.length; i++) {
+        const part = messageParts[i];
+        const replyId = i === 0 ? message.message_id : undefined;  // Reply only to first part
+        await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: message.chat.id, text: part, reply_to_message_id: replyId })
+        });
+        if (i < messageParts.length - 1) {
+          // Delay between parts (except after last)
+          await new Promise(resolve => setTimeout(resolve, 3000));
+        }
+      }
     }
 
     return res.status(200).json({ ok: true, message_id: insertedMessage.id, user_id: user.id });

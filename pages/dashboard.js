@@ -7,8 +7,10 @@ export default function Dashboard() {
   const [partners, setPartners] = useState([]);
   const [offers, setOffers] = useState([]);
   const [referrals, setReferrals] = useState([]);
+  const [contexts, setContexts] = useState([]);
   const [newPartner, setNewPartner] = useState({ name: '', contact_email: '', referral_fee_percent: 10 });
   const [newOffer, setNewOffer] = useState({ partner_id: '', title: '', description: '', category: '', price_cents: 0, discount_percent: 0, referral_link: '', payment_type: 'external' });
+  const [newContext, setNewContext] = useState({ type: 'post', title: '', description: '', tags: '', link: '' });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -17,11 +19,12 @@ export default function Dashboard() {
 
   const fetchData = async () => {
     try {
-      const [metricsRes, partnersRes, offersRes, referralsRes] = await Promise.all([
+      const [metricsRes, partnersRes, offersRes, referralsRes, contextsRes] = await Promise.all([
         fetch('/api/admin/metrics'),
         fetch('/api/admin/manage-partners'),
         fetch('/api/admin/manage-offers'),
-        fetch('/api/admin/manage-referrals')
+        fetch('/api/admin/manage-referrals'),
+        fetch('/api/admin/manage-context')
       ]);
       setMetrics(await metricsRes.json());
       const partnersData = await partnersRes.json();
@@ -30,11 +33,14 @@ export default function Dashboard() {
       setOffers(Array.isArray(offersData) ? offersData : []);
       const referralsData = await referralsRes.json();
       setReferrals(Array.isArray(referralsData) ? referralsData : []);
+      const contextsData = await contextsRes.json();
+      setContexts(Array.isArray(contextsData) ? contextsData : []);
     } catch (error) {
       console.error('Failed to fetch data:', error);
       setPartners([]);
       setOffers([]);
       setReferrals([]);
+      setContexts([]);
     } finally {
       setLoading(false);
     }
@@ -97,6 +103,27 @@ export default function Dashboard() {
       }
     } catch (error) {
       console.error('Error adding offer:', error);
+    }
+  };
+
+  const handleAddContext = async (e) => {
+    e.preventDefault();
+    try {
+      const tagsArray = newContext.tags.split(',').map(t => t.trim()).filter(t => t);
+      const res = await fetch('/api/admin/manage-context', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...newContext, tags: tagsArray }),
+      });
+      if (res.ok) {
+        alert('Context added successfully!');
+        setNewContext({ type: 'post', title: '', description: '', tags: '', link: '' });
+        fetchData();
+      } else {
+        alert('Failed to add context');
+      }
+    } catch (error) {
+      console.error('Error adding context:', error);
     }
   };
 
@@ -336,6 +363,66 @@ export default function Dashboard() {
           {referrals.map(r => (
             <div key={r.id} className="list-item">
               User: {r.users?.external_id} - Offer: {r.offers?.title} - Status: {r.status} - Commission: ${(r.commission_earned_cents / 100).toFixed(2)}
+            </div>
+          ))}
+        </div>
+        <div className="form">
+          <h2>Add Character Context</h2>
+          <form onSubmit={handleAddContext}>
+            <div className="form-group">
+              <label>Type:</label>
+              <select
+                value={newContext.type}
+                onChange={(e) => setNewContext({ ...newContext, type: e.target.value })}
+              >
+                <option value="post">Post</option>
+                <option value="image">Image</option>
+                <option value="location">Location</option>
+                <option value="blog">Blog</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Title:</label>
+              <input
+                type="text"
+                value={newContext.title}
+                onChange={(e) => setNewContext({ ...newContext, title: e.target.value })}
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label>Description:</label>
+              <textarea
+                value={newContext.description}
+                onChange={(e) => setNewContext({ ...newContext, description: e.target.value })}
+                rows="3"
+              />
+            </div>
+            <div className="form-group">
+              <label>Tags (comma-separated):</label>
+              <input
+                type="text"
+                value={newContext.tags}
+                onChange={(e) => setNewContext({ ...newContext, tags: e.target.value })}
+                placeholder="e.g., travel, motivation, self-care"
+              />
+            </div>
+            <div className="form-group">
+              <label>Link:</label>
+              <input
+                type="url"
+                value={newContext.link}
+                onChange={(e) => setNewContext({ ...newContext, link: e.target.value })}
+              />
+            </div>
+            <button type="submit">Add Context</button>
+          </form>
+        </div>
+        <div className="list">
+          <h2>Character Contexts</h2>
+          {contexts.map(c => (
+            <div key={c.id} className="list-item">
+              <strong>{c.title}</strong> ({c.type}) - Tags: {c.tags?.join(', ')} - <a href={c.link} target="_blank">Link</a>
             </div>
           ))}
         </div>
