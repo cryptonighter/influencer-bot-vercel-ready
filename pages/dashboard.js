@@ -149,6 +149,25 @@ export default function Dashboard() {
     }
   };
 
+  const handleDelete = async (type, id) => {
+    if (!confirm(`Are you sure you want to delete this ${type}?`)) return;
+    try {
+      let endpoint;
+      if (type === 'partner') endpoint = '/api/admin/manage-partners';
+      else if (type === 'offer') endpoint = '/api/admin/manage-offers';
+      else if (type === 'context') endpoint = '/api/admin/manage-context';
+      const res = await fetch(`${endpoint}?id=${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        alert(`${type} deleted successfully!`);
+        fetchData();
+      } else {
+        alert('Failed to delete');
+      }
+    } catch (error) {
+      console.error('Error deleting:', error);
+    }
+  };
+
   if (loading) return <div className="loading">Loading...</div>;
 
   return (
@@ -369,6 +388,7 @@ export default function Dashboard() {
           {partners.map(p => (
             <div key={p.id} className="list-item">
               <strong>{p.name}</strong> - {p.contact_email} - {p.referral_fee_percent}% fee
+              <button onClick={() => handleDelete('partner', p.id)} style={{ marginLeft: '10px', background: '#ff0000', color: '#fff' }}>x</button>
             </div>
           ))}
         </div>
@@ -377,6 +397,7 @@ export default function Dashboard() {
           {offers.map(o => (
             <div key={o.id} className="list-item">
               <strong>{o.title}</strong> - {o.category} - ${(o.price_cents / 100).toFixed(2)} ({o.discount_percent}% off)
+              <button onClick={() => handleDelete('offer', o.id)} style={{ marginLeft: '10px', background: '#ff0000', color: '#fff' }}>x</button>
             </div>
           ))}
         </div>
@@ -445,6 +466,7 @@ export default function Dashboard() {
           {contexts.map(c => (
             <div key={c.id} className="list-item">
               <strong>{c.title}</strong> ({c.type}) - Tags: {c.tags?.join(', ')} - <a href={c.link} target="_blank">Link</a>
+              <button onClick={() => handleDelete('context', c.id)} style={{ marginLeft: '10px', background: '#ff0000', color: '#fff' }}>x</button>
             </div>
           ))}
         </div>
