@@ -158,42 +158,54 @@ async function generateAIResponse(userId, sessionId, userMessage) {
   const newOffers = relevantOffers.filter(o => !referredOfferIds.includes(o.id));
 
   // Query and filter relevant character contexts based on topics
-  const { data: allContexts } = await supabaseAdmin
-    .from('character_context')
-    .select('id, type, title, description, tags, link')
-    .eq('active', true)
-    .overlaps('tags', summaryData.topics || [])
-    .limit(5);  // Get more to filter
-
   let relevantContexts = [];
-  if (allContexts && Array.isArray(allContexts) && allContexts.length > 0) {
-    // Create a new array to avoid mutation
-    const contextsCopy = allContexts.slice();
+  try {
+    const { data: allContexts, error: contextError } = await supabaseAdmin
+      .from('character_context')
+      .select('id, type, title, description, tags, link')
+      .eq('active', true)
+      .overlaps('tags', summaryData.topics || [])
+      .limit(5);
 
-    // Filter for visual/content types
-    const filtered = [];
-    for (let i = 0; i < contextsCopy.length; i++) {
-      const context = contextsCopy[i];
-      if (context && context.type && ['post', 'image'].includes(context.type)) {
-        filtered.push(context);
+    if (contextError) {
+      console.error('Context query error:', contextError);
+    } else if (allContexts && Array.isArray(allContexts) && allContexts.length > 0) {
+      // Simple filtering without complex chains
+      const tempContexts = [];
+      for (let idx = 0; idx < allContexts.length; idx++) {
+        const ctx = allContexts[idx];
+        if (ctx && ctx.type && (ctx.type === 'post' || ctx.type === 'image')) {
+          tempContexts.push(ctx);
+        }
       }
+
+      // Simple sorting
+      tempContexts.sort(function(first, second) {
+        let firstCount = 0;
+        let secondCount = 0;
+        if (first.tags && Array.isArray(first.tags) && summaryData.topics && Array.isArray(summaryData.topics)) {
+          for (let t = 0; t < first.tags.length; t++) {
+            if (summaryData.topics.includes(first.tags[t])) {
+              firstCount++;
+            }
+          }
+        }
+        if (second.tags && Array.isArray(second.tags) && summaryData.topics && Array.isArray(summaryData.topics)) {
+          for (let t = 0; t < second.tags.length; t++) {
+            if (summaryData.topics.includes(second.tags[t])) {
+              secondCount++;
+            }
+          }
+        }
+        return secondCount - firstCount;
+      });
+
+      // Take top 2
+      relevantContexts = tempContexts.slice(0, 2);
     }
-
-    // Sort by number of matching tags
-    filtered.sort(function(itemA, itemB) {
-      const aMatches = (itemA.tags && Array.isArray(itemA.tags)) ?
-        itemA.tags.filter(function(tag) {
-          return summaryData.topics && Array.isArray(summaryData.topics) && summaryData.topics.includes(tag);
-        }).length : 0;
-      const bMatches = (itemB.tags && Array.isArray(itemB.tags)) ?
-        itemB.tags.filter(function(tag) {
-          return summaryData.topics && Array.isArray(summaryData.topics) && summaryData.topics.includes(tag);
-        }).length : 0;
-      return bMatches - aMatches;
-    });
-
-    // Limit to top 2
-    relevantContexts = filtered.slice(0, 2);
+  } catch (err) {
+    console.error('Context filtering catch:', err);
+    relevantContexts = [];
   }
 
   console.log('User topics:', summaryData.topics);
