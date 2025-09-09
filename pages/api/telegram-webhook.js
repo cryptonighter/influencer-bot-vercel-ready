@@ -150,13 +150,23 @@ async function generateAIResponse(userId, sessionId, userMessage) {
   const referredOfferIds = existingReferrals ? existingReferrals.map(r => r.offer_id) : [];
   const newOffers = relevantOffers.filter(o => !referredOfferIds.includes(o.id));
 
-  // Query relevant character contexts based on topics
-  const { data: relevantContexts } = await supabaseAdmin
+  // Query and filter relevant character contexts based on topics
+  const { data: allContexts } = await supabaseAdmin
     .from('character_context')
     .select('id, type, title, description, tags, link')
     .eq('active', true)
     .overlaps('tags', summaryData.topics || [])
-    .limit(2);
+    .limit(5);  // Get more to filter
+
+  // Filter and prioritize: Prefer posts/images, exact tag matches, limit to 2
+  const relevantContexts = allContexts
+    ?.filter(c => ['post', 'image'].includes(c.type))  // Prioritize visual/content types
+    ?.sort((a, b) => {
+      const aMatches = a.tags.filter(tag => summaryData.topics.includes(tag)).length;
+      const bMatches = b.tags.filter(tag => summaryData.topics.includes(tag)).length;
+      return bMatches - aMatches;  // Sort by number of matching tags
+    })
+    ?.slice(0, 2) || [];  // Limit to top 2
 
   console.log('User topics:', summaryData.topics);
   console.log('Relevant offers found:', relevantOffers.length, 'New offers:', newOffers.length);
