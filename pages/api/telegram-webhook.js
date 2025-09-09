@@ -165,15 +165,27 @@ async function generateAIResponse(userId, sessionId, userMessage) {
     .overlaps('tags', summaryData.topics || [])
     .limit(5);  // Get more to filter
 
-  // Filter and prioritize: Prefer posts/images, exact tag matches, limit to 2
-  const relevantContexts = allContexts
-    ?.filter(c => ['post', 'image'].includes(c.type))  // Prioritize visual/content types
-    ?.sort((a, b) => {
-      const aMatches = a.tags.filter(tag => summaryData.topics.includes(tag)).length;
-      const bMatches = b.tags.filter(tag => summaryData.topics.includes(tag)).length;
-      return bMatches - aMatches;  // Sort by number of matching tags
-    })
-    ?.slice(0, 2) || [];  // Limit to top 2
+  let relevantContexts = [];
+  if (allContexts && Array.isArray(allContexts) && allContexts.length > 0) {
+    // Filter for visual/content types
+    const filtered = allContexts.filter(function(context) {
+      return context && context.type && ['post', 'image'].includes(context.type);
+    });
+
+    // Sort by number of matching tags
+    const sorted = filtered.sort(function(a, b) {
+      const aMatches = (a.tags && Array.isArray(a.tags)) ? a.tags.filter(function(tag) {
+        return summaryData.topics && summaryData.topics.includes(tag);
+      }).length : 0;
+      const bMatches = (b.tags && Array.isArray(b.tags)) ? b.tags.filter(function(tag) {
+        return summaryData.topics && summaryData.topics.includes(tag);
+      }).length : 0;
+      return bMatches - aMatches;
+    });
+
+    // Limit to top 2
+    relevantContexts = sorted.slice(0, 2);
+  }
 
   console.log('User topics:', summaryData.topics);
   console.log('Relevant offers found:', relevantOffers.length, 'New offers:', newOffers.length);
