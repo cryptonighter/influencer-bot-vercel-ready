@@ -309,22 +309,50 @@ ${contextInfo}` }
     max_tokens: maxTokens
   };
 
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(responsePayload)
-  });
+  let aiMessage = "Sorry, I'm having trouble responding right now. Let's chat later!";
+  try {
+    let aiMessage = "Sorry, I'm having trouble responding right now. Let's chat later!";
+  try {
+    let aiMessage = "Sorry, I'm having trouble responding right now. Let's chat later!";
+  try {
+    let aiMessage = "Sorry, I'm having trouble responding right now. Let's chat later!";
+  try {
+    console.log('Sending AI request with payload:', JSON.stringify(responsePayload, null, 2));
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(responsePayload)
+    });
 
-  if (!response.ok) {
-    console.error('AI API failed:', response.statusText);
-    return "Sorry, I'm having trouble responding right now. Let's chat later!";
+    console.log('AI API response status:', response.status);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('AI API failed:', response.status, response.statusText, errorText);
+      return aiMessage;
+    }
+
+    const data = await response.json();
+    console.log('AI response data:', JSON.stringify(data, null, 2));
+    if (data.choices && data.choices[0] && data.choices[0].message) {
+      aiMessage = data.choices[0].message.content;
+    } else {
+      console.error('Unexpected AI response format:', data);
+    }
+  } catch (aiError) {
+    console.error('AI API fetch error:', aiError);
   }
-
-  const data = await response.json();
-  let aiMessage = data.choices[0].message.content;
+  } catch (aiError) {
+    console.error('AI API fetch error:', aiError);
+  }
+  } catch (aiError) {
+    console.error('AI API fetch error:', aiError);
+  }
+  } catch (aiError) {
+    console.error('AI API fetch error:', aiError);
+  }
 
   // Remove "Mia:" prefix if present
   if (aiMessage.startsWith('Mia:')) {
@@ -434,7 +462,7 @@ export default async function handler(req, res) {
     const user = await upsertUser(message.from);
     const session = await getOrCreateSession(user.id);
 
-    const { data: insertedMessage } = await supabaseAdmin
+    const { data: insertedMessage, error: insertError } = await supabaseAdmin
       .from('messages')
       .insert([{
         session_id: session.id,
@@ -447,18 +475,30 @@ export default async function handler(req, res) {
       .select()
       .single();
 
+    if (insertError) {
+      console.error('Failed to insert user message:', insertError);
+      return res.status(500).json({ error: 'Database error' });
+    }
+
     const { message: aiResponse, embedding } = await generateAIResponse(user.id, session.id, message.text);
 
     // Store embedding if generated
     if (embedding) {
-      await supabaseAdmin
+      const { error: embeddingError } = await supabaseAdmin
         .from('embeddings')
         .insert([{ user_id: user.id, message_id: insertedMessage.id, content: message.text, embedding, source: 'telegram' }]);
+      if (embeddingError) {
+        console.error('Failed to insert embedding:', embeddingError);
+      }
     }
 
-    await supabaseAdmin
+    const { error: botMessageError } = await supabaseAdmin
       .from('messages')
       .insert([{ session_id: session.id, user_id: user.id, direction: 'bot', body: aiResponse, body_json: { ai_generated: true } }]);
+    if (botMessageError) {
+      console.error('Failed to insert bot message:', botMessageError);
+      return res.status(500).json({ error: 'Database error' });
+    }
 
     // Split and send message parts
     const messageParts = splitMessage(aiResponse);
@@ -466,16 +506,27 @@ export default async function handler(req, res) {
       for (let i = 0; i < messageParts.length; i++) {
         const part = messageParts[i];
         const replyId = i === 0 ? message.message_id : undefined;  // Reply only to first part
-        await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: message.chat.id, text: part, reply_to_message_id: replyId })
-        });
+        try {
+          const telegramResponse = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: message.chat.id, text: part, reply_to_message_id: replyId })
+          });
+          if (!telegramResponse.ok) {
+            console.error('Telegram API error:', telegramResponse.status, await telegramResponse.text());
+          } else {
+            console.log('Message part sent successfully:', i + 1, 'of', messageParts.length);
+          }
+        } catch (telegramError) {
+          console.error('Failed to send message to Telegram:', telegramError);
+        }
         if (i < messageParts.length - 1) {
           // Delay between parts (except after last)
           await new Promise(resolve => setTimeout(resolve, 3000));
         }
       }
+    } else {
+      console.error('TELEGRAM_BOT_TOKEN not set');
     }
 
     return res.status(200).json({ ok: true, message_id: insertedMessage.id, user_id: user.id });
