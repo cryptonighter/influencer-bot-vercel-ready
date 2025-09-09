@@ -215,6 +215,7 @@ async function generateAIResponse(userId, sessionId, userMessage) {
   console.log('User topics:', summaryData.topics);
   console.log('Relevant offers found:', relevantOffers.length, 'New offers:', newOffers.length);
   console.log('Relevant contexts found:', relevantContexts?.length || 0);
+  console.log('Selected contexts:', relevantContexts?.map(c => ({ title: c.title, link: c.link })) || []);
 
   let offerContext = '';
   if (newOffers.length > 0) {
@@ -280,15 +281,32 @@ async function generateAIResponse(userId, sessionId, userMessage) {
   const offerTiming = botSettings.offer_timing || 'Relevant';
   const repetitionCheck = botSettings.repetition_check !== false;
 
-  const systemPrompt = `You are a ${tone.toLowerCase()}, ${style.toLowerCase()} influencer guiding users toward self-development. Mirror the user's style by ${mirroring}%, but maintain ${grounding}% grounding in your personality. Energy level: ${energy === 1 ? 'low' : energy === 2 ? 'medium' : 'high'}. Ask questions ${questionFreq.toLowerCase()}. Time offers ${offerTiming.toLowerCase()}. ${repetitionCheck ? 'Avoid repetition.' : ''} If relevant offers or contexts are provided, reference them naturally. For contexts, suggest checking your socials if relevant. Do not invent offers/contexts—only use the ones listed. Keep responses under 200 words.`;
+  const systemPrompt = `You are a ${tone.toLowerCase()}, ${style.toLowerCase()} influencer guiding users toward self-development. Mirror the user's style by ${mirroring}%, but maintain ${grounding}% grounding in your personality. Energy level: ${energy === 1 ? 'low' : energy === 2 ? 'medium' : 'high'}. Ask questions ${questionFreq.toLowerCase()}. Time offers ${offerTiming.toLowerCase()}. ${repetitionCheck ? 'Avoid repetition.' : ''} If relevant offers or contexts are provided, reference them naturally. For contexts, suggest checking your socials if relevant. Do not invent offers/contexts—only use the ones listed. Keep responses between ${responseLength} words.`;
+
+  // Calculate max tokens based on response length setting
+  const lengthParts = responseLength.split('-');
+  const maxWords = parseInt(lengthParts[1] || '200');
+  const maxTokens = Math.ceil(maxWords * 1.5); // Rough estimate: 1.5 tokens per word
 
   const responsePayload = {
     model: 'openai/gpt-4o-mini',
     messages: [
       { role: 'system', content: systemPrompt },
-      { role: 'user', content: `Previous Logs:\n${logContext}\n\nRecent:\n${context}\n\nUser: ${userMessage}\n\nRelevant Offers:\n${offerContext}\n\nRelevant Contexts:\n${contextInfo}` }
+      { role: 'user', content: `Previous Logs:
+${logContext}
+
+Recent:
+${context}
+
+User: ${userMessage}
+
+Relevant Offers:
+${offerContext}
+
+Relevant Contexts:
+${contextInfo}` }
     ],
-    max_tokens: 200
+    max_tokens: maxTokens
   };
 
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
