@@ -67,6 +67,10 @@ function splitMessage(message) {
 
 // AI response helper with theme/fact extraction and context memory
 async function generateAIResponse(userId, sessionId, userMessage) {
+  // Prepare a default summaryData object first
+  let summaryData = { summary: '', topics: [], facts: {}, embed_worthy: false };
+  let logContext = '';
+
   // Fetch recent messages for immediate context
   const { data: recentMessages } = await supabaseAdmin
     .from('messages')
@@ -80,8 +84,35 @@ async function generateAIResponse(userId, sessionId, userMessage) {
     5000
   );
 
-  // Fetch relevant conversation logs based on current topics
-  let logContext = '';
+  // Analyze the user message to get topics
+  const analysisPayload = {
+    model: 'openai/gpt-4o-mini',
+    messages: [
+      { role: 'system', content: 'Analyze the user message and context for themes, facts, and if it\'s worth embedding. Respond with JSON: {"summary": "brief overview of user input", "topics": ["list"], "facts": {"key": "value"}, "embed_worthy": true/false}.' },
+      { role: 'user', content: `Context:\n${context}\n\nUser: ${userMessage}` }
+    ],
+    max_tokens: 200
+  };
+
+  const analysisResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(analysisPayload)
+  });
+
+  if (analysisResponse.ok) {
+    const analysisData = await analysisResponse.json();
+    try {
+      summaryData = JSON.parse(analysisData.choices[0].message.content);
+    } catch (err) {
+      console.error('Failed to parse analysis JSON:', err);
+    }
+  }
+
+  // Now it's safe to reference summaryData.topics (it has been updated)
   if (summaryData.topics && summaryData.topics.length > 0) {
     const { data: relevantLogs } = await supabaseAdmin
       .from('conversation_logs')
@@ -96,34 +127,7 @@ async function generateAIResponse(userId, sessionId, userMessage) {
     }
   }
 
-  // Generate summary/topics/facts BEFORE the response, based on user input
-  const analysisPayload = {
-    model: 'openai/gpt-4o-mini',
-    messages: [
-      { role: 'system', content: 'Analyze the user message and context for themes, facts, and if it\'s worth embedding. Respond with JSON: {"summary": "brief overview of user input", "topics": ["list"], "facts": {"key": "value"}, "embed_worthy": true/false}.' },
-      { role: 'user', content: `Context:\n${logContext}\n\nRecent:\n${context}\n\nUser: ${userMessage}` }
-    ],
-    max_tokens: 200
-  };
-
-  const analysisResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(analysisPayload)
-  });
-
-  let summaryData = { summary: '', topics: [], facts: {}, embed_worthy: false };
-  if (analysisResponse.ok) {
-    const analysisData = await analysisResponse.json();
-    try {
-      summaryData = JSON.parse(analysisData.choices[0].message.content);
-    } catch (err) {
-      console.error('Failed to parse analysis JSON:', err);
-    }
-  }
+  
 
   // Query relevant offers based on topics
   let relevantOffers = [];
@@ -282,7 +286,7 @@ async function generateAIResponse(userId, sessionId, userMessage) {
     model: 'openai/gpt-4o-mini',
     messages: [
       { role: 'system', content: systemPrompt },
-      { role: 'user', content: `Context:\n${logContext}\n\nRecent:\n${context}\n\nUser: ${userMessage}\n\nRelevant Offers:\n${offerContext}\n\nRelevant Contexts:\n${contextInfo}` }
+      { role: 'user', content: `Previous Logs:\n${logContext}\n\nRecent:\n${context}\n\nUser: ${userMessage}\n\nRelevant Offers:\n${offerContext}\n\nRelevant Contexts:\n${contextInfo}` }
     ],
     max_tokens: 200
   };
