@@ -29,7 +29,12 @@ async function generateEmbedding(text) {
 
   const data = await response.json();
   try {
-    const embedding = JSON.parse(data.choices[0].message.content);
+    let content = data.choices[0].message.content.trim();
+    // Strip markdown code block if present
+    if (content.startsWith('```json')) {
+      content = content.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+    }
+    const embedding = JSON.parse(content);
     if (Array.isArray(embedding)) return embedding;
     return null;
   } catch (err) {
