@@ -613,6 +613,36 @@ export default function Dashboard() {
               )}
             </div>
 
+            <div className="form">
+              <h2>Add Context</h2>
+              <form onSubmit={handleAddContext}>
+                <div className="form-group">
+                  <label>Type:</label>
+                  <select value={newContext.type} onChange={(e) => setNewContext({ ...newContext, type: e.target.value })}>
+                    <option value="post">Post</option>
+                    <option value="image">Image</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Title:</label>
+                  <input type="text" value={newContext.title} onChange={(e) => setNewContext({ ...newContext, title: e.target.value })} required />
+                </div>
+                <div className="form-group">
+                  <label>Description:</label>
+                  <textarea value={newContext.description} onChange={(e) => setNewContext({ ...newContext, description: e.target.value })} rows="3" />
+                </div>
+                <div className="form-group">
+                  <label>Tags (comma-separated):</label>
+                  <input type="text" value={newContext.tags} onChange={(e) => setNewContext({ ...newContext, tags: e.target.value })} />
+                </div>
+                <div className="form-group">
+                  <label>Link:</label>
+                  <input type="url" value={newContext.link} onChange={(e) => setNewContext({ ...newContext, link: e.target.value })} />
+                </div>
+                <button type="submit">Add Context</button>
+              </form>
+            </div>
+
             <div className="list">
               <h2>Character Contexts</h2>
               {contexts.map(c => (
