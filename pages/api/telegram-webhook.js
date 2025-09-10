@@ -24,14 +24,14 @@ async function generateEmbedding(text) {
   }
 
   const text = await response.text();
-  let data;
-  try {
-    data = JSON.parse(text);
-  } catch (parseError) {
-    console.error('Failed to parse embedding response as JSON:', parseError);
-    console.error('Embedding response text:', text.substring(0, 500));
-    return null;
-  }
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (parseError) {
+      console.error('Failed to parse AI response as JSON:', parseError);
+      console.error('AI response text:', text.substring(0, 500));
+      return aiMessage;
+    }
   try {
     if (data.data && data.data[0] && data.data[0].embedding) {
       return data.data[0].embedding;
