@@ -23,7 +23,15 @@ async function generateEmbedding(text) {
     return null;
   }
 
-  const data = await response.json();
+  let data;
+  try {
+    data = await response.json();
+  } catch (parseError) {
+    console.error('Failed to parse embedding response as JSON:', parseError);
+    const textResponse = await response.text();
+    console.error('Embedding response text:', textResponse.substring(0, 500));
+    return null;
+  }
   try {
     if (data.data && data.data[0] && data.data[0].embedding) {
       return data.data[0].embedding;
