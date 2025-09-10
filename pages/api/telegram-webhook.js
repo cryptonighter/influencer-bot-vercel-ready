@@ -255,7 +255,7 @@ async function generateAIResponse(userId, sessionId, userMessage) {
     .from('character_settings')
     .select('setting_key, setting_value');
   const botSettings = {};
-  settingsData?.forEach(s => { botSettings[s.setting_key] = s.setting_value; });
+  settingsData?.forEach(s => { botSettings[s.setting_key] = s.setting_value });
 
   // Memory cleanup based on duration
   const memoryDuration = botSettings.memory_duration || '1 Week';
@@ -281,8 +281,24 @@ async function generateAIResponse(userId, sessionId, userMessage) {
   const offerTiming = botSettings.offer_timing || 'Relevant';
   const repetitionCheck = botSettings.repetition_check !== false;
   const responseLength = botSettings.response_length || '50-200';
+  const humorLevel = botSettings.humor_level || 'Medium';
+  const trollStyle = botSettings.troll_response_style || 'Direct';
 
-  const systemPrompt = `You are a ${tone.toLowerCase()}, ${style.toLowerCase()} influencer guiding users toward self-development. Mirror the user's style by ${mirroring}%, but maintain ${grounding}% grounding in your personality. Energy level: ${energy === 1 ? 'low' : energy === 2 ? 'medium' : 'high'}. Ask questions ${questionFreq.toLowerCase()}. Time offers ${offerTiming.toLowerCase()}. ${repetitionCheck ? 'Avoid repetition.' : ''} If relevant offers or contexts are provided, reference them naturally. For contexts, suggest checking your socials if relevant. Do not invent offers/contexts—only use the ones listed. Keep responses between ${responseLength} words.`;
+  const systemPrompt = `You are a ${tone.toLowerCase()}, ${style.toLowerCase()} influencer guiding users toward self-development. Mirror the user's style by ${mirroring}%, but maintain ${grounding}% grounding in your personality. Energy level: ${energy === 1 ? 'low' : energy === 2 ? 'medium' : 'high'}. Ask questions ${questionFreq.toLowerCase()}. Time offers ${offerTiming.toLowerCase()}. ${repetitionCheck ? 'Avoid repetition.' : ''} Humor level: ${humorLevel.toLowerCase()}. Troll response style: ${trollStyle.toLowerCase()}.
+
+Core Principles:
+- Respond conversationally with shorter messages when appropriate, keeping it natural and engaging.
+- Only reference offers or contexts if they are truly relevant to the user's current topic; do not push if the user indicates disinterest.
+- Do not refer to non-existent social media content or invent information.
+- Handle trolls or disruptive behavior ${trollStyle.toLowerCase()}ly—redirect to positive growth or disengage if necessary.
+- Use humor at ${humorLevel.toLowerCase()} level when appropriate to lighten serious topics, but prioritize seriousness and compassion.
+- Be compassionate without pity; use adversity as an opportunity for growth, guiding users to recognize potential in challenges.
+- Ask precise, well-articulated questions to deepen understanding.
+- Before giving feedback or advice, ask if the user would like to add their perspective.
+- Provide advice carefully: avoid supporting vengeance, revenge, or hatred toward self or others; focus on constructive, forward-looking guidance.
+- Maintain a grounded spirit that turns obstacles into stepping stones for personal development.
+
+If relevant offers or contexts are provided, reference them naturally. For contexts, only suggest checking socials if the context explicitly includes a link and it's pertinent. Do not invent offers/contexts—only use the ones listed. Keep responses between ${responseLength} words.`;
 
   // Calculate max tokens based on response length setting
   const lengthParts = responseLength.split('-');
@@ -466,11 +482,11 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Database error' });
     }
 
-    const { message: aiResponse, embedding } = await generateAIResponse(user.id, session.id, message.text);
+    const { message: aiResponse, embedding, summaryData } = await generateAIResponse(user.id, session.id, message.text);
 
     // Store embedding if generated (using summarized content for efficiency)
     if (embedding) {
-      const summarizedContent = await summarizeText(message.text);
+      const summarizedContent = summaryData.summary || message.text;
       const { error: embeddingError } = await supabaseAdmin
         .from('embeddings')
         .insert([{ user_id: user.id, message_id: insertedMessage.id, content: summarizedContent, embedding, source: 'telegram' }]);

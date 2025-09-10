@@ -551,6 +551,20 @@ export default function Dashboard() {
                   <input type="checkbox" checked={settings.repetition_check || true} onChange={(e) => setSettings({ ...settings, repetition_check: e.target.checked })} />
                 </div>
 
+                <h3>Interaction Styles</h3>
+                <div className="form-group">
+                  <label>Humor Level:</label>
+                  <select value={settings.humor_level || 'Medium'} onChange={(e) => setSettings({ ...settings, humor_level: e.target.value })}>
+                    <option>Low</option><option>Medium</option><option>High</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Troll Response Style:</label>
+                  <select value={settings.troll_response_style || 'Direct'} onChange={(e) => setSettings({ ...settings, troll_response_style: e.target.value })}>
+                    <option>Direct</option><option>Ignore</option><option>Redirect</option>
+                  </select>
+                </div>
+
                 <h3>Memory and Context Management</h3>
                 <div className="form-group">
                   <label>Context Memory Duration:</label>
