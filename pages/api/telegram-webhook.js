@@ -23,15 +23,15 @@ async function generateEmbedding(text) {
     return null;
   }
 
-  const text = await response.text();
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch (parseError) {
-      console.error('Failed to parse AI response as JSON:', parseError);
-      console.error('AI response text:', text.substring(0, 500));
-      return aiMessage;
-    }
+  const responseText = await response.text();
+  let data;
+  try {
+    data = JSON.parse(responseText);
+  } catch (parseError) {
+    console.error('Failed to parse embedding response as JSON:', parseError);
+    console.error('Embedding response text:', responseText.substring(0, 500));
+    return null;
+  }
   try {
     if (data.data && data.data[0] && data.data[0].embedding) {
       return data.data[0].embedding;
@@ -468,11 +468,12 @@ export default async function handler(req, res) {
 
     const { message: aiResponse, embedding } = await generateAIResponse(user.id, session.id, message.text);
 
-    // Store embedding if generated
+    // Store embedding if generated (using summarized content for efficiency)
     if (embedding) {
+      const summarizedContent = await summarizeText(message.text);
       const { error: embeddingError } = await supabaseAdmin
         .from('embeddings')
-        .insert([{ user_id: user.id, message_id: insertedMessage.id, content: message.text, embedding, source: 'telegram' }]);
+        .insert([{ user_id: user.id, message_id: insertedMessage.id, content: summarizedContent, embedding, source: 'telegram' }]);
       if (embeddingError) {
         console.error('Failed to insert embedding:', embeddingError);
       }
