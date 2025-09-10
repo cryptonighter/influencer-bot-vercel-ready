@@ -219,10 +219,7 @@ async function generateAIResponse(userId, sessionId, userMessage) {
 
   let offerContext = '';
   if (newOffers.length > 0) {
-    offerContext = newOffers.map(o =>
-      `Offer: ${o.title} - ${o.description}. Price: ${(o.price_cents / 100).toFixed(2)} (${o.discount_percent}% off!). Link: ${o.referral_link}`
-    ).join('
-');
+    offerContext = newOffers.map(o => `Offer: ${o.title} - ${o.description}. Price: ${(o.price_cents / 100).toFixed(2)} (${o.discount_percent}% off!). Link: ${o.referral_link}`).join(' \n ');
   }
 
   let contextInfo = '';
