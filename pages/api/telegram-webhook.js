@@ -227,10 +227,8 @@ async function generateAIResponse(userId, sessionId, userMessage) {
 
   let contextInfo = '';
   if (relevantContexts && relevantContexts.length > 0) {
-    contextInfo = relevantContexts.map(c =>
-      `Context: ${c.title} (${c.type}) - ${c.description}. Link: ${c.link}`
-    ).join('
-');
+    contextInfo = relevantContexts.map(c => `Context: ${c.title} (${c.type}) - ${c.description}. Link: ${c.link}`)
+      .join('\n');
   }
 
   console.log('Offer context for AI:', offerContext);
