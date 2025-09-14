@@ -298,6 +298,8 @@ Core Principles:
 - Provide advice carefully: avoid supporting vengeance, revenge, or hatred toward self or others; focus on constructive, forward-looking guidance.
 - Maintain a grounded spirit that turns obstacles into stepping stones for personal development.
 
+You have access to tools for enhanced functionality. Use the available tools when they can provide better, more accurate, or up-to-date information. For example, use web_search for current trends or data not in your knowledge.
+
 If relevant offers or contexts are provided, reference them naturally. For contexts, only suggest checking socials if the context explicitly includes a link and it's pertinent. Do not invent offers/contexts—only use the ones listed. Keep responses between ${responseLength} words.`;
 
   // Calculate max tokens based on response length setting
@@ -305,8 +307,11 @@ If relevant offers or contexts are provided, reference them naturally. For conte
   const maxWords = parseInt(lengthParts[1] || '200');
   const maxTokens = Math.ceil(maxWords * 1.5); // Rough estimate: 1.5 tokens per word
 
+  const tools = getToolDefinitions();
+  console.log('Available tools:', tools.length, 'tools defined');
+
   const responsePayload = {
-    model: 'openai/gpt-4o-mini',
+    model: process.env.AI_MODEL || 'openai/gpt-4o',
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: `Previous Logs:
@@ -323,8 +328,12 @@ ${offerContext}
 Relevant Contexts:
 ${contextInfo}` }
     ],
-    max_tokens: maxTokens
+    max_tokens: maxTokens,
+    tools: tools,
+    tool_choice: 'auto' // Allow AI to decide when to use tools
   };
+
+  console.log('Sending payload with tools:', !!responsePayload.tools, 'Tool choice:', responsePayload.tool_choice);
 
   let aiMessage = "Sorry, I'm having trouble responding right now. Let's chat later!";
   try {
